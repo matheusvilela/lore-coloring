@@ -183,8 +183,6 @@ export function Dock({
             </div>
           </div>
 
-          <span className="dock__sep dock__sep--v" aria-hidden="true" />
-
           <div ref={actionsRef} className="dock__block dock__block--actions">
             <div className="dock__actions" role="group" aria-label="Ações">
               <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">

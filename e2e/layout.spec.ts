@@ -65,7 +65,7 @@ test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }
   await page.setViewportSize({ width: 448, height: 997 });
   await page.goto('/');
 
-  await expect(page.locator('.dock__sep--v')).toBeHidden();
+  await expect(page.locator('.dock__sep--v')).toHaveCount(0);
 
   const undo = page.getByRole('button', { name: 'Desfazer' });
   const brush = page.getByRole('button', { name: 'Pincel' });
@@ -75,32 +75,21 @@ test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }
   expect(undoBox!.height).toBeCloseTo(brushBox!.height, 0);
 });
 
-test('no celular: o divisor some na coluna', async ({ page }) => {
-  await page.setViewportSize({ width: 448, height: 997 });
-  await page.goto('/');
-  await expect(page.locator('.dock__sep--v')).toBeHidden();
-});
-
-test('no desktop largo: pintura à esquerda das ações com divisor no meio', async ({ page }) => {
+test('no desktop largo: pintura à esquerda das ações, sem divisor', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
 
   const undo = page.getByRole('button', { name: 'Desfazer' });
   const bucket = page.getByRole('button', { name: 'Balde de tinta' });
-  const sep = page.locator('.dock__sep--v');
-
   const undoBox = await undo.boundingBox();
   const bucketBox = await bucket.boundingBox();
-  const sepBox = await sep.boundingBox();
   expect(undoBox).not.toBeNull();
   expect(bucketBox).not.toBeNull();
-  expect(sepBox).not.toBeNull();
 
-  expect(bucketBox!.x).toBeLessThan(sepBox!.x);
-  expect(sepBox!.x).toBeLessThan(undoBox!.x);
+  expect(bucketBox!.x).toBeLessThan(undoBox!.x);
   const dy = Math.abs((undoBox?.y ?? 0) - (bucketBox?.y ?? 0));
   expect(dy).toBeLessThanOrEqual(8);
-  await expect(sep).toBeVisible();
+  await expect(page.locator('.dock__sep--v')).toHaveCount(0);
 });
 
 test('no desktop largo: cores alinham com as ferramentas', async ({ page }) => {
@@ -141,13 +130,13 @@ test('no desktop largo: cores alinham com as ferramentas', async ({ page }) => {
   expect(secondBox!.y).toBeGreaterThan(firstBox!.y + firstBox!.height);
 
   const buttonGap = crayonBox!.x - (brushBox!.x + brushBox!.width);
-  const separatorGap = gridBox!.x - (sizeBox!.x + sizeBox!.width);
+  const groupGap = gridBox!.x - (sizeBox!.x + sizeBox!.width);
   const toolToColorGap = firstBox!.y - (brushBox!.y + brushBox!.height);
   const colorRowGap = secondBox!.y - (firstBox!.y + firstBox!.height);
-  expect(buttonGap).toBeCloseTo(separatorGap, 0);
+  expect(buttonGap).toBeCloseTo(8, 0);
+  expect(groupGap).toBeCloseTo(buttonGap, 0);
   expect(toolToColorGap).toBeCloseTo(buttonGap, 0);
   expect(colorRowGap).toBeCloseTo(buttonGap, 0);
-  expect(separatorGap).toBeGreaterThan(16);
 });
 
 test('no celular: a paleta continua em 8 colunas', async ({ page }) => {
@@ -173,7 +162,7 @@ test('no desktop estreito: pintura na linha de cima sem divisor vertical', async
   const undoBox = await undo.boundingBox();
   const brushBox = await brush.boundingBox();
   expect(brushBox!.y + brushBox!.height).toBeLessThanOrEqual(undoBox!.y + 4);
-  await expect(page.locator('.dock__sep--v')).toBeHidden();
+  await expect(page.locator('.dock__sep--v')).toHaveCount(0);
 });
 
 test('no desktop baixo: controles numa fita horizontal', async ({ page }) => {
