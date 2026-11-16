@@ -15,8 +15,10 @@
     "build:assets": "node scripts/build-assets.mjs"
   },
   "dependencies": {
+    "idb": "^8.0.4",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "vite-plugin-pwa": "^2.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

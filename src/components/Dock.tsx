@@ -23,6 +23,9 @@ type Props = {
   onColor: (hex: string) => void;
   onSize: (index: SizeIndex) => void;
   onUndo: () => void;
+  onOpenGrid: () => void;
+  onClearLetter: () => void;
+  onClearAll: () => void;
 };
 
 export function Dock({
@@ -34,11 +37,26 @@ export function Dock({
   onColor,
   onSize,
   onUndo,
+  onOpenGrid,
+  onClearLetter,
+  onClearAll,
 }: Props) {
   const stillUsesSize = toolUsesSize(tool);
 
   return (
     <footer className="dock">
+      <div className="dock__row dock__row--meta">
+        <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
+          <GridIcon />
+        </button>
+        <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
+          <ClearLetterIcon />
+        </button>
+        <button type="button" className="tool tool--meta" onClick={onClearAll} aria-label="Limpar todas as letras">
+          <ClearAllIcon />
+        </button>
+      </div>
+
       <div className="dock__row">
         <div className="tools" role="group" aria-label="Ferramentas">
           {TOOLS.map((item) => (
@@ -173,6 +191,38 @@ function ToolIcon({ tool }: { tool: Tool }) {
         fill="currentColor"
         stroke="none"
       />
+    </svg>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+function ClearLetterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path d="M6 7h12" strokeLinecap="round" />
+      <path d="M9 7V5h6v2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 7l.8 12.2h6.4L16 7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ClearAllIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path d="M5 7h14" strokeLinecap="round" />
+      <path d="M8 7V5h8v2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 7l1 13h8l1-13" strokeLinejoin="round" />
+      <path d="M10 10v7M14 10v7" strokeLinecap="round" />
     </svg>
   );
 }

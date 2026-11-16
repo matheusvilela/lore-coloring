@@ -34,6 +34,8 @@ export type PainterEvents = {
   onHistoryChange?: (canUndo: boolean) => void;
   /** Eventos de domínio para o som futuro (D10). */
   onAction?: (action: 'stroke' | 'erase' | 'fill') => void;
+  /** Camada de cor alterada (autosave). */
+  onPaintDirty?: () => void;
 };
 
 /**
@@ -137,12 +139,14 @@ export class Painter {
     this.commands.pop();
     this.repaint();
     this.emitHistory();
+    this.emitPaintDirty();
     return true;
   }
 
   /** Limpa a pintura da letra atual (o desfazer de tudo). */
   clear(): void {
     this.reset();
+    this.emitPaintDirty();
   }
 
   /**
@@ -167,9 +171,40 @@ export class Painter {
     this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
   }
 
-  /** Há pintura na letra atual? (usado pela persistência da Etapa 4) */
+  /** Há comandos na sessão (desfazer). */
   hasPaint(): boolean {
     return this.commands.length > 0;
+  }
+
+  /** Há pixels opacos na camada de cor (persistência / grade). */
+  hasVisiblePaint(): boolean {
+    return paintLayerHasPixels(this.pctx, CANVAS_W, CANVAS_H);
+  }
+
+  /** Restaura a camada de cor a partir de um PNG salvo (histórico da sessão zera). */
+  async restorePaint(blob: Blob): Promise<void> {
+    this.commands = [];
+    this.current = null;
+    if (this.frame) {
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+    }
+    this.pctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    const bitmap = await createImageBitmap(blob);
+    try {
+      this.pctx.drawImage(bitmap, 0, 0, CANVAS_W, CANVAS_H);
+    } finally {
+      bitmap.close();
+    }
+    this.emitHistory();
+  }
+
+  /** Exporta a camada de cor como PNG, ou `null` se estiver vazia. */
+  exportPaintBlob(): Promise<Blob | null> {
+    if (!this.hasVisiblePaint()) return Promise.resolve(null);
+    const dataUrl = this.paint.toDataURL('image/png');
+    return fetch(dataUrl).then((response) => response.blob());
   }
 
   destroy(): void {
@@ -320,6 +355,7 @@ export class Painter {
     this.commands.push(cmd);
     this.applyFill(this.pctx, cmd);
     this.emitHistory();
+    this.emitPaintDirty();
     this.events.onAction?.('fill');
     return true;
   }
@@ -445,6 +481,10 @@ export class Painter {
     this.events.onHistoryChange?.(this.commands.length > 0);
   }
 
+  private emitPaintDirty(): void {
+    this.events.onPaintDirty?.();
+  }
+
   /* ---------- eventos de ponteiro ---------- */
 
   private onPointerDown = (event: PointerEvent): void => {
@@ -540,6 +580,7 @@ export class Painter {
     else this.paintCommand(this.pctx, command);
 
     this.emitHistory();
+    this.emitPaintDirty();
     this.events.onAction?.(command.kind);
   };
 
@@ -574,4 +615,12 @@ function clamp(value: number, min: number, max: number): number {
 
 function prevent(event: Event): void {
   event.preventDefault();
+}
+
+function paintLayerHasPixels(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {
+  const { data } = ctx.getImageData(0, 0, w, h);
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i]! > 0) return true;
+  }
+  return false;
 }

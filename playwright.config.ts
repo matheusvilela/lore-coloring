@@ -9,7 +9,7 @@ export default defineConfig({
     baseURL: 'http://localhost:4173/lore-coloring/',
   },
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://localhost:4173/lore-coloring/',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

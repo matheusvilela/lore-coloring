@@ -2,11 +2,22 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { CANVAS_H, CANVAS_W, Painter } from './canvas/Painter';
 import type { SizeIndex, Tool } from './canvas/tools';
 import { usePinchZoom } from './canvas/zoom';
+import { Confirm } from './components/Confirm';
 import { Dock } from './components/Dock';
-import { LETTERS, assetUrl } from './data/letters';
+import { LetterGrid } from './components/LetterGrid';
+import { LETTERS, assetUrl, type Letter } from './data/letters';
 import { DEFAULT_COLOR } from './data/palette';
+import {
+  deleteAllPaint,
+  deletePaint,
+  getPaint,
+  paintedLetters,
+  putPaint,
+  requestPersistentStorage,
+} from './storage/db';
 
 type Size = { w: number; h: number };
+type Screen = 'studio' | 'grid';
 
 function preload(letter: string | undefined): void {
   if (!letter) return;
@@ -16,11 +27,20 @@ function preload(letter: string | undefined): void {
   }
 }
 
+const AUTOSAVE_MS = 800;
+
 export default function App() {
   const stageRef = useRef<HTMLElement | null>(null);
   const pagerRef = useRef<HTMLElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const painterRef = useRef<Painter | null>(null);
+  const letterRef = useRef<Letter>('A');
+  const saveTimer = useRef<number | null>(null);
+  const scheduleSaveRef = useRef<() => void>(() => {});
+
+  const [screen, setScreen] = useState<Screen>('studio');
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [painted, setPainted] = useState<Set<string>>(new Set());
 
   const [index, setIndex] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
@@ -29,8 +49,38 @@ export default function App() {
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [sizeIndex, setSizeIndex] = useState<SizeIndex>(1);
+  const [painterReady, setPainterReady] = useState(false);
 
-  const letter = LETTERS[index];
+  const letter = LETTERS[index]!;
+  letterRef.current = letter;
+
+  const refreshPainted = useCallback(async () => {
+    setPainted(await paintedLetters());
+  }, []);
+
+  const flushSave = useCallback(async () => {
+    if (saveTimer.current !== null) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const painter = painterRef.current;
+    if (!painter) return;
+    const blob = await painter.exportPaintBlob();
+    const key = letterRef.current;
+    if (blob) await putPaint(key, blob);
+    else await deletePaint(key);
+    await refreshPainted();
+  }, [refreshPainted]);
+
+  const scheduleSave = useCallback(() => {
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      saveTimer.current = null;
+      void flushSave();
+    }, AUTOSAVE_MS);
+  }, [flushSave]);
+
+  scheduleSaveRef.current = scheduleSave;
 
   const cancelStroke = useCallback(() => {
     painterRef.current?.cancelStroke();
@@ -38,36 +88,59 @@ export default function App() {
 
   const { reset: resetZoom } = usePinchZoom(stageRef, sheetRef, cancelStroke);
 
-  // o motor vive fora do React; só recriamos se o container mudar
+  useEffect(() => {
+    void requestPersistentStorage();
+    void refreshPainted();
+  }, [refreshPainted]);
+
+  useEffect(() => {
+    const flush = () => void flushSave();
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    };
+  }, [flushSave]);
+
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!sheet) return;
 
-    const painter = new Painter(sheet, { onHistoryChange: setCanUndo }, { tool, color, sizeIndex });
+    const painter = new Painter(
+      sheet,
+      {
+        onHistoryChange: setCanUndo,
+        onPaintDirty: () => scheduleSaveRef.current(),
+      },
+      { tool, color, sizeIndex },
+    );
     painterRef.current = painter;
+    setPainterReady(true);
 
     return () => {
       painter.destroy();
       painterRef.current = null;
+      setPainterReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ajusta a folha ao espaço disponível, preservando a proporção do canvas
   useLayoutEffect(() => {
+    if (screen !== 'studio') return;
     const stage = stageRef.current;
     const pager = pagerRef.current;
     if (!stage || !pager) return;
 
     const fit = () => {
-      // clientWidth/Height já excluem borda, mas não o padding: nas telas
-      // largas ele reserva a canaleta das setas e precisa sair da conta.
       const style = getComputedStyle(stage);
       const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
 
-      // no celular as setas ficam numa faixa abaixo da folha e comem altura;
-      // nas telas largas elas vão para as canaletas (position: absolute) e não custam nada
       const pagerOffset =
         getComputedStyle(pager).position === 'absolute'
           ? 0
@@ -79,7 +152,6 @@ export default function App() {
 
       const scale = Math.min(width / CANVAS_W, height / CANVAS_H);
       setSize({ w: Math.floor(CANVAS_W * scale), h: Math.floor(CANVAS_H * scale) });
-      // a geometria de encaixe mudou: um zoom antigo apontaria para o lugar errado
       resetZoom();
     };
 
@@ -87,7 +159,7 @@ export default function App() {
     const observer = new ResizeObserver(fit);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, [resetZoom]);
+  }, [resetZoom, screen]);
 
   useEffect(() => {
     painterRef.current?.setTool({ tool, color, sizeIndex });
@@ -95,23 +167,53 @@ export default function App() {
 
   useEffect(() => {
     const painter = painterRef.current;
-    if (!painter) return;
+    if (!painter || !painterReady) return;
 
     setCanUndo(false);
     resetZoom();
-    void painter.loadLetter(letter).then(() => {
+    void (async () => {
+      await painter.loadLetter(letter);
+      const saved = await getPaint(letter);
+      if (saved) await painter.restorePaint(saved);
       preload(LETTERS[index + 1]);
       preload(LETTERS[index - 1]);
-    });
-  }, [letter, index, resetZoom]);
+    })();
+  }, [letter, index, resetZoom, painterReady]);
+
+  const pickLetter = useCallback((picked: Letter) => {
+    const next = LETTERS.indexOf(picked);
+    if (next >= 0) setIndex(next);
+    setScreen('studio');
+  }, []);
 
   const go = useCallback((delta: number) => {
+    if (delta > 0 && index === LETTERS.length - 1) {
+      setScreen('grid');
+      return;
+    }
     setIndex((current) => Math.min(LETTERS.length - 1, Math.max(0, current + delta)));
-  }, []);
+  }, [index]);
 
   const undo = useCallback(() => {
     painterRef.current?.undo();
   }, []);
+
+  const clearLetter = useCallback(() => {
+    painterRef.current?.clear();
+    void (async () => {
+      await deletePaint(letterRef.current);
+      await refreshPainted();
+    })();
+  }, [refreshPainted]);
+
+  const clearAll = useCallback(() => {
+    setConfirmClearAll(false);
+    painterRef.current?.clear();
+    void (async () => {
+      await deleteAllPaint();
+      await refreshPainted();
+    })();
+  }, [refreshPainted]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -130,9 +232,21 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [go, resetZoom, undo]);
 
+  if (screen === 'grid') {
+    return (
+      <div className="app">
+        <LetterGrid
+          current={letter}
+          painted={painted}
+          onPick={pickLetter}
+          onClose={() => setScreen('studio')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      {/* a letra não aparece mais no layout, mas continua anunciada para leitores de tela */}
       <p className="letter-status" role="status" aria-live="polite">
         {letter}
       </p>
@@ -163,8 +277,7 @@ export default function App() {
           <button
             className="btn nav"
             onClick={() => go(1)}
-            disabled={index === LETTERS.length - 1}
-            aria-label="Próxima letra"
+            aria-label={index === LETTERS.length - 1 ? 'Ver todas as letras' : 'Próxima letra'}
           >
             <Arrow direction="right" />
           </button>
@@ -180,7 +293,20 @@ export default function App() {
         onColor={setColor}
         onSize={setSizeIndex}
         onUndo={undo}
+        onOpenGrid={() => setScreen('grid')}
+        onClearLetter={clearLetter}
+        onClearAll={() => setConfirmClearAll(true)}
       />
+
+      {confirmClearAll ? (
+        <Confirm
+          title="Limpar tudo?"
+          message="Apaga a pintura de todas as 26 letras. Não dá para desfazer depois de fechar o aviso."
+          confirmLabel="Limpar tudo"
+          onCancel={() => setConfirmClearAll(false)}
+          onConfirm={clearAll}
+        />
+      ) : null}
     </div>
   );
 }
