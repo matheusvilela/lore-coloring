@@ -300,12 +300,56 @@ body {
   flex-shrink: 0;
   align-self: center;
   width: 1px;
-  height: 56px;
+  height: 38px;
   background: rgba(42, 38, 34, 0.14);
 }
 
 .dock__controls.is-stacked .dock__sep--v {
   display: none;
+}
+
+/* duas linhas: mesma grade de colunas para alinhar botão 1 com botão 1 */
+.dock__controls.is-stacked {
+  --dock-cols: 7;
+  --dock-cell: 56px;
+  display: grid;
+  grid-template-columns: repeat(var(--dock-cols), var(--dock-cell));
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.dock__controls.is-stacked::-webkit-scrollbar {
+  display: none;
+}
+
+.dock__controls.is-stacked .dock__block--paint,
+.dock__controls.is-stacked .dock__block--actions,
+.dock__controls.is-stacked .tools,
+.dock__controls.is-stacked .sizes,
+.dock__controls.is-stacked .dock__actions {
+  display: contents;
+}
+
+.dock__controls.is-stacked .size {
+  justify-self: center;
+}
+
+@media (min-width: 760px) {
+  .dock__controls.is-stacked .tools .tool,
+  .dock__controls.is-stacked .sizes .size {
+    grid-row: 1;
+  }
+
+  .dock__controls.is-stacked .dock__actions .tool {
+    grid-row: 2;
+  }
 }
 
 .sizes {
@@ -431,24 +475,14 @@ body {
   }
 
   .dock__controls {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-  }
-
-  .dock__block--actions {
-    order: -1;
-  }
-
-  .dock__sep--v {
-    display: none;
-  }
-
-  .dock__block--actions,
-  .dock__block--paint {
-    width: 100%;
+    --dock-cols: 7;
+    --dock-cell: 56px;
+    display: grid;
+    grid-template-columns: repeat(var(--dock-cols), var(--dock-cell));
+    gap: 8px;
     justify-content: center;
-    flex-wrap: nowrap;
+    align-items: center;
+    width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 2px 0;
@@ -457,9 +491,37 @@ body {
     touch-action: pan-x;
   }
 
-  .dock__block--actions::-webkit-scrollbar,
-  .dock__block--paint::-webkit-scrollbar {
+  .dock__controls::-webkit-scrollbar {
     display: none;
+  }
+
+  .dock__block--paint,
+  .dock__block--actions,
+  .tools,
+  .sizes,
+  .dock__actions {
+    display: contents;
+  }
+
+  .dock__sep--v {
+    display: none;
+  }
+
+  .size {
+    justify-self: center;
+  }
+
+  /* celular: ações na linha 1, pintura na linha 2 */
+  .dock__controls.is-stacked .dock__actions .tool,
+  .dock__actions .tool {
+    grid-row: 1;
+  }
+
+  .dock__controls.is-stacked .tools .tool,
+  .dock__controls.is-stacked .sizes .size,
+  .tools .tool,
+  .sizes .size {
+    grid-row: 2;
   }
 
   /* abaixo da faixa de ferramentas, ainda no canto do board */
@@ -669,7 +731,12 @@ body {
   }
 
   .dock__sep--v {
-    height: 50px;
+    height: 34px;
+  }
+
+  .dock__controls,
+  .dock__controls.is-stacked {
+    --dock-cell: 50px;
   }
 
   .sizes {
@@ -723,7 +790,12 @@ body {
   }
 
   .dock__sep--v {
-    height: 44px;
+    height: 30px;
+  }
+
+  .dock__controls,
+  .dock__controls.is-stacked {
+    --dock-cell: 44px;
   }
 
   .tool svg {

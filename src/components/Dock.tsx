@@ -61,8 +61,17 @@ export function Dock({
     if (!controls || !actions || !paint) return;
 
     const measure = () => {
-      const isStacked = Math.abs(actions.offsetTop - paint.offsetTop) > 4;
-      setStacked(isStacked);
+      if (window.matchMedia('(max-width: 759px)').matches) {
+        setStacked(true);
+        return;
+      }
+      const firstAction = actions.querySelector<HTMLElement>('.tool');
+      const firstPaint = paint.querySelector<HTMLElement>('.tool');
+      if (!firstAction || !firstPaint) {
+        setStacked(false);
+        return;
+      }
+      setStacked(Math.abs(firstAction.offsetTop - firstPaint.offsetTop) > 4);
     };
 
     measure();

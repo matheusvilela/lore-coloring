@@ -33,6 +33,19 @@ test('no celular: ações ficam acima das ferramentas de pintura', async ({ page
   expect(undoBox!.y + undoBox!.height).toBeLessThanOrEqual(brushBox!.y + 4);
 });
 
+test('no celular: colunas alinham entre as duas linhas', async ({ page }) => {
+  await page.setViewportSize({ width: 448, height: 997 });
+  await page.goto('/');
+
+  const grid = page.getByRole('button', { name: 'Grade de letras' });
+  const brush = page.getByRole('button', { name: 'Pincel' });
+  const gridBox = await grid.boundingBox();
+  const brushBox = await brush.boundingBox();
+  expect(gridBox).not.toBeNull();
+  expect(brushBox).not.toBeNull();
+  expect(gridBox!.x).toBeCloseTo(brushBox!.x, 0);
+});
+
 test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }) => {
   await page.setViewportSize({ width: 448, height: 997 });
   await page.goto('/');
