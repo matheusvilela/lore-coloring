@@ -5,7 +5,6 @@ node_modules
 yarn.lock
 pnpm-lock.yaml
 dist
-_qa
 .tmp-assets
 test-results
 playwright-report

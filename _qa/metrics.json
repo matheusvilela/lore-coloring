@@ -1,0 +1,225 @@
+{
+  "box": {
+    "minX": 10,
+    "minY": 10,
+    "maxX": 318,
+    "maxY": 240,
+    "w": 309,
+    "h": 231
+  },
+  "px": {
+    "w": 2048,
+    "h": 1531
+  },
+  "total": 2413957,
+  "metrics": [
+    {
+      "letter": "A",
+      "paths": 2,
+      "regions": 12,
+      "paintable": 9,
+      "largestPct": 18.2,
+      "bytes": 82633
+    },
+    {
+      "letter": "B",
+      "paths": 1,
+      "regions": 13,
+      "paintable": 6,
+      "largestPct": 22.6,
+      "bytes": 77450
+    },
+    {
+      "letter": "C",
+      "paths": 1,
+      "regions": 21,
+      "paintable": 12,
+      "largestPct": 12.4,
+      "bytes": 92695
+    },
+    {
+      "letter": "D",
+      "paths": 1,
+      "regions": 13,
+      "paintable": 4,
+      "largestPct": 22.2,
+      "bytes": 64254
+    },
+    {
+      "letter": "E",
+      "paths": 1,
+      "regions": 17,
+      "paintable": 8,
+      "largestPct": 14.8,
+      "bytes": 79051
+    },
+    {
+      "letter": "F",
+      "paths": 1,
+      "regions": 15,
+      "paintable": 9,
+      "largestPct": 12.1,
+      "bytes": 72398
+    },
+    {
+      "letter": "G",
+      "paths": 1,
+      "regions": 14,
+      "paintable": 3,
+      "largestPct": 18.9,
+      "bytes": 83661
+    },
+    {
+      "letter": "H",
+      "paths": 3,
+      "regions": 10,
+      "paintable": 4,
+      "largestPct": 16.4,
+      "bytes": 100973
+    },
+    {
+      "letter": "I",
+      "paths": 4,
+      "regions": 6,
+      "paintable": 5,
+      "largestPct": 14.4,
+      "bytes": 73959
+    },
+    {
+      "letter": "J",
+      "paths": 1,
+      "regions": 11,
+      "paintable": 6,
+      "largestPct": 21.5,
+      "bytes": 81301
+    },
+    {
+      "letter": "K",
+      "paths": 2,
+      "regions": 11,
+      "paintable": 4,
+      "largestPct": 17.8,
+      "bytes": 94778
+    },
+    {
+      "letter": "L",
+      "paths": 3,
+      "regions": 11,
+      "paintable": 5,
+      "largestPct": 25.4,
+      "bytes": 76920
+    },
+    {
+      "letter": "M",
+      "paths": 2,
+      "regions": 12,
+      "paintable": 8,
+      "largestPct": 46.7,
+      "bytes": 118653
+    },
+    {
+      "letter": "N",
+      "paths": 1,
+      "regions": 12,
+      "paintable": 10,
+      "largestPct": 35.3,
+      "bytes": 107330
+    },
+    {
+      "letter": "O",
+      "paths": 2,
+      "regions": 7,
+      "paintable": 5,
+      "largestPct": 30.8,
+      "bytes": 84373
+    },
+    {
+      "letter": "P",
+      "paths": 3,
+      "regions": 6,
+      "paintable": 3,
+      "largestPct": 19,
+      "bytes": 67468
+    },
+    {
+      "letter": "Q",
+      "paths": 5,
+      "regions": 15,
+      "paintable": 9,
+      "largestPct": 29.2,
+      "bytes": 106175
+    },
+    {
+      "letter": "R",
+      "paths": 8,
+      "regions": 6,
+      "paintable": 3,
+      "largestPct": 23.4,
+      "bytes": 90750
+    },
+    {
+      "letter": "S",
+      "paths": 1,
+      "regions": 9,
+      "paintable": 1,
+      "largestPct": 12.9,
+      "bytes": 86604
+    },
+    {
+      "letter": "T",
+      "paths": 9,
+      "regions": 15,
+      "paintable": 5,
+      "largestPct": 12.8,
+      "bytes": 90430
+    },
+    {
+      "letter": "U",
+      "paths": 6,
+      "regions": 8,
+      "paintable": 4,
+      "largestPct": 29.3,
+      "bytes": 88191
+    },
+    {
+      "letter": "V",
+      "paths": 4,
+      "regions": 7,
+      "paintable": 6,
+      "largestPct": 20.5,
+      "bytes": 97379
+    },
+    {
+      "letter": "W",
+      "paths": 3,
+      "regions": 20,
+      "paintable": 12,
+      "largestPct": 31.1,
+      "bytes": 122412
+    },
+    {
+      "letter": "X",
+      "paths": 7,
+      "regions": 22,
+      "paintable": 10,
+      "largestPct": 28.3,
+      "bytes": 150033
+    },
+    {
+      "letter": "Y",
+      "paths": 4,
+      "regions": 6,
+      "paintable": 4,
+      "largestPct": 22.9,
+      "bytes": 87120
+    },
+    {
+      "letter": "Z",
+      "paths": 2,
+      "regions": 16,
+      "paintable": 13,
+      "largestPct": 25,
+      "bytes": 136966
+    }
+  ]
+}

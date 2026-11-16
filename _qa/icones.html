@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<style>
+  body { margin: 0; background: #f4f1ea; font: 13px ui-rounded, system-ui, sans-serif; color: #2a2622; padding: 18px 22px; }
+  h2 { font-size: 13px; font-weight: 700; margin: 16px 0 8px; color: #6d655c; letter-spacing: .04em; text-transform: uppercase; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .tool {
+    display: grid; place-items: center; width: 56px; height: 56px; padding: 0; border: 0;
+    border-radius: 18px; background: #fff; color: #4a443d;
+    box-shadow: 0 3px 10px rgba(42,38,34,.12);
+  }
+  .tool.active { color: #d24545; box-shadow: inset 0 0 0 3px currentColor, 0 3px 10px rgba(42,38,34,.12); }
+  .small .tool { width: 44px; height: 44px; border-radius: 14px; }
+  .small svg { width: 22px; height: 22px; }
+  .caption { width: 100%; color: #8a8178; font-size: 12px; margin-top: 6px; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+<h2>Como está hoje</h2>
+<div class="row">
+  <button class="tool active">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+      <path d="M5.2 13.4 17.5 4.2a2.1 2.1 0 0 1 2.6 3.2L11 19.4" />
+      <path d="M4 20.6c.1-1.6 1-2.6 2.3-2.6 1.3 0 2.2.9 2.2 2.1 0 1.3-1 2.2-2.4 2.2-1.3 0-2.1-.7-2.1-1.7Z" fill="currentColor" stroke="none" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+      <path d="M9.1 20.8 3.2 14.9 15.1 3l5.9 5.9L9.1 20.8Z" />
+      <path d="M11.6 6.5 17.5 12.4M8.3 9.8 14.2 15.7" stroke-width="1.6" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+      <path d="M4.2 14.6 13 5.8a2.4 2.4 0 0 1 3.4 0l2.3 2.3a2.4 2.4 0 0 1 0 3.4L12.1 18H8.2l-4-4a.4.4 0 0 1 0-.6Z" />
+      <path d="M9.4 9.4 15 15M12.6 18H21" stroke-width="1.7" stroke-linecap="round" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+      <path d="M10.2 4.6 3.1 11.7a1.6 1.6 0 0 0 0 2.2l5 5a1.6 1.6 0 0 0 2.2 0l7.1-7.1L10.2 4.6Z" />
+      <path d="M8.4 6.4 6.1 4.1" stroke-linecap="round" />
+      <path d="M19.6 13.6c1.2 1.7 1.9 2.9 1.9 3.6a1.9 1.9 0 0 1-3.8 0c0-.7.7-1.9 1.9-3.6Z" fill="currentColor" stroke="none" />
+    </svg>
+  </button>
+</div>
+
+<h2>Proposta A — pincel Lucide, giz vertical, borracha Lucide, balde atual</h2>
+<div class="row">
+  <button class="tool active">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m14.622 17.897-10.68-2.913" />
+      <path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z" />
+      <path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3h8v10.5L12 20l-4-6.5Z" />
+      <path d="M8 8.5h8" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
+      <path d="m5.082 11.09 8.828 8.828" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+      <path d="M10.2 4.6 3.1 11.7a1.6 1.6 0 0 0 0 2.2l5 5a1.6 1.6 0 0 0 2.2 0l7.1-7.1L10.2 4.6Z" />
+      <path d="M8.4 6.4 6.1 4.1" stroke-linecap="round" />
+      <path d="M19.6 13.6c1.2 1.7 1.9 2.9 1.9 3.6a1.9 1.9 0 0 1-3.8 0c0-.7.7-1.9 1.9-3.6Z" fill="currentColor" stroke="none" />
+    </svg>
+  </button>
+</div>
+
+<h2>Proposta B — pincel Lucide “brush”, giz diagonal, borracha Lucide, balde atual</h2>
+<div class="row">
+  <button class="tool active">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m11 10 3 3" />
+      <path d="M6.5 21A3.5 3.5 0 1 0 3 17.5a2.62 2.62 0 0 1-.708 1.792A1 1 0 0 0 3 21z" />
+      <path d="M9.969 17.031 21.378 5.624a1 1 0 0 0-3.002-3.002L6.967 14.031" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.2 20.8 8.6 20.9 20.9 8.6 15.6 3.3 3.3 15.6Z" />
+      <path d="M7.4 11.5 12.5 16.6" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
+      <path d="m5.082 11.09 8.828 8.828" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+      <path d="M10.2 4.6 3.1 11.7a1.6 1.6 0 0 0 0 2.2l5 5a1.6 1.6 0 0 0 2.2 0l7.1-7.1L10.2 4.6Z" />
+      <path d="M8.4 6.4 6.1 4.1" stroke-linecap="round" />
+      <path d="M19.6 13.6c1.2 1.7 1.9 2.9 1.9 3.6a1.9 1.9 0 0 1-3.8 0c0-.7.7-1.9 1.9-3.6Z" fill="currentColor" stroke="none" />
+    </svg>
+  </button>
+</div>
+
+<h2>Proposta A em tamanho pequeno (44 px, celular deitado)</h2>
+<div class="row small">
+  <button class="tool active">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m14.622 17.897-10.68-2.913" />
+      <path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z" />
+      <path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3h8v10.5L12 20l-4-6.5Z" />
+      <path d="M8 8.5h8" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
+      <path d="m5.082 11.09 8.828 8.828" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+      <path d="M10.2 4.6 3.1 11.7a1.6 1.6 0 0 0 0 2.2l5 5a1.6 1.6 0 0 0 2.2 0l7.1-7.1L10.2 4.6Z" />
+      <path d="M8.4 6.4 6.1 4.1" stroke-linecap="round" />
+      <path d="M19.6 13.6c1.2 1.7 1.9 2.9 1.9 3.6a1.9 1.9 0 0 1-3.8 0c0-.7.7-1.9 1.9-3.6Z" fill="currentColor" stroke="none" />
+    </svg>
+  </button>
+</div>
+
+<h2>Desfazer</h2>
+<div class="row">
+  <button class="tool active">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 7 H6 M6 7 V4 M6 7 L9.5 10.5 M6 7 H14 A5 5 0 0 1 14 17 H10" />
+    </svg>
+  </button>
+  <button class="tool">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+    </svg>
+  </button>
+  <span class="caption">esquerda: hoje &nbsp;·&nbsp; direita: Lucide undo-2</span>
+</div>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<style>
+  body { margin:0; background:#f4f1ea; font:12px ui-rounded, system-ui, sans-serif; color:#2a2622; padding:16px 20px; width:660px; }
+  h2 { font-size:12px; font-weight:700; margin:14px 0 8px; color:#6d655c; letter-spacing:.04em; text-transform:uppercase; }
+  .row { display:flex; gap:14px; align-items:flex-end; }
+  .cell { display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .tool { display:grid; place-items:center; width:56px; height:56px; border:0; border-radius:18px; background:#fff; color:#4a443d; box-shadow:0 3px 10px rgba(42,38,34,.12); }
+  .tool.s { width:44px; height:44px; border-radius:14px; }
+  .tool svg { width:30px; height:30px; }
+  .tool.s svg { width:23px; height:23px; }
+  .tool.active { color:#d24545; box-shadow: inset 0 0 0 3px currentColor, 0 3px 10px rgba(42,38,34,.12); }
+  svg { display:block; }
+  .lbl { font-size:11px; color:#8a8178; }
+</style>
+</head>
+<body>
+<h2>Giz de cera — candidatos</h2>
+<div class="row">
+  <div class="cell">
+    <button class="tool active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4h10.2l7 3.2a1 1 0 0 1 0 1.8l-7 3.2H3.2a1 1 0 0 1-1-1V9.4a1 1 0 0 1 1-1Z"/><path d="M11 8.4v8.2"/></svg></button>
+    <span class="lbl">C1 deitado</span>
+  </div>
+  <div class="cell">
+    <button class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4h10.2l6.2 3.1a1.1 1.1 0 0 1 0 2l-6.2 3.1H3.2a1 1 0 0 1-1-1V9.4a1 1 0 0 1 1-1Z"/><path d="M13.4 8.4v8.2"/><path d="M16.6 10v5"/></svg></button>
+    <span class="lbl">C2 duas faixas</span>
+  </div>
+  <div class="cell">
+    <button class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 16.4 8.2 20.4 20.6 8.1 16.4 3.9Z"/><path d="M12.3 15.3 8.6 11.6"/><path d="M14.9 12.7 11.2 9"/></svg></button>
+    <span class="lbl">C3 diagonal</span>
+  </div>
+  <div class="cell">
+    <button class="tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 9.2h12.2l7 2.8-7 2.8H2.2Z"/><path d="M11.4 9.2v5.6"/></svg></button>
+    <span class="lbl">C4 ponta chata</span>
+  </div>
+</div>
+
+<h2>44 / 23 px</h2>
+<div class="row">
+  <div class="cell">
+    <button class="tool s active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4h10.2l7 3.2a1 1 0 0 1 0 1.8l-7 3.2H3.2a1 1 0 0 1-1-1V9.4a1 1 0 0 1 1-1Z"/><path d="M11 8.4v8.2"/></svg></button>
+    <span class="lbl">C1</span>
+  </div>
+  <div class="cell">
+    <button class="tool s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4h10.2l6.2 3.1a1.1 1.1 0 0 1 0 2l-6.2 3.1H3.2a1 1 0 0 1-1-1V9.4a1 1 0 0 1 1-1Z"/><path d="M13.4 8.4v8.2"/><path d="M16.6 10v5"/></svg></button>
+    <span class="lbl">C2</span>
+  </div>
+  <div class="cell">
+    <button class="tool s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 16.4 8.2 20.4 20.6 8.1 16.4 3.9Z"/><path d="M12.3 15.3 8.6 11.6"/><path d="M14.9 12.7 11.2 9"/></svg></button>
+    <span class="lbl">C3</span>
+  </div>
+  <div class="cell">
+    <button class="tool s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 9.2h12.2l7 2.8-7 2.8H2.2Z"/><path d="M11.4 9.2v5.6"/></svg></button>
+    <span class="lbl">C4</span>
+  </div>
+  <div class="cell">
+    <button class="tool s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 3.4 12.6 11.4"/><path d="M13.9 6.6 17.4 10.1"/><path d="M12.9 9.9a1.6 1.6 0 0 1 0 2.3l-3 3c-1.9 1.9-4.5 3-7.2 3.2-.5 0-.9-.4-.8-.9.3-2.7 1.4-5.3 3.3-7.2l3-3a1.6 1.6 0 0 1 2.3 0Z"/></svg></button>
+    <span class="lbl">pincel escolhido</span>
+  </div>
+  <div class="cell">
+    <button class="tool s"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8.086 2.207a2 2 0 0 1 2.828 0l3.879 3.879a2 2 0 0 1 0 2.828l-5.5 5.5A2 2 0 0 1 7.879 15H5.12a2 2 0 0 1-1.414-.586l-2.5-2.5a2 2 0 0 1 0-2.828zm2.121.707a1 1 0 0 0-1.414 0L4.16 7.547l5.293 5.293 4.633-4.633a1 1 0 0 0 0-1.414zM8.746 13.547 3.453 8.254 1.914 9.793a1 1 0 0 0 0 1.414l2.5 2.5a1 1 0 0 0 .707.293H7.88a1 1 0 0 0 .707-.293z"/></svg></button>
+    <span class="lbl">borracha</span>
+  </div>
+</div>
+</body>
+</html>
