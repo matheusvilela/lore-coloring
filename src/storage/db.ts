@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { LETTERS } from '../data/letters';
 
 interface LoreDB extends DBSchema {
   paint: {
@@ -12,6 +13,27 @@ const STORE = 'paint';
 const VERSION = 1;
 
 let dbPromise: Promise<IDBPDatabase<LoreDB>> | null = null;
+
+/** Versão monotônica por letra: escritas obsoletas não sobrescrevem as novas. */
+const writeSeq = new Map<string, number>();
+const writeTail = new Map<string, Promise<void>>();
+
+function bumpWriteSeq(letter: string): number {
+  const next = (writeSeq.get(letter) ?? 0) + 1;
+  writeSeq.set(letter, next);
+  return next;
+}
+
+function enqueue(letter: string, run: () => Promise<void>): Promise<void> {
+  const prev = writeTail.get(letter) ?? Promise.resolve();
+  const next = prev.then(run, run);
+  writeTail.set(letter, next);
+  return next;
+}
+
+export async function awaitPaintWrites(letter: string): Promise<void> {
+  await (writeTail.get(letter) ?? Promise.resolve());
+}
 
 function database(): Promise<IDBPDatabase<LoreDB>> {
   if (!dbPromise) {
@@ -37,48 +59,78 @@ function baseKey(letter: string): string {
 }
 
 export async function getPaint(letter: string): Promise<Blob | undefined> {
+  await awaitPaintWrites(letter);
   return (await database()).get(STORE, paintKey(letter));
 }
 
-export async function putPaint(letter: string, blob: Blob): Promise<void> {
-  await (await database()).put(STORE, blob, paintKey(letter));
-}
-
 export async function getHistory(letter: string): Promise<Blob | undefined> {
+  await awaitPaintWrites(letter);
   return (await database()).get(STORE, historyKey(letter));
 }
 
-export async function putHistory(letter: string, json: string): Promise<void> {
-  const blob = new Blob([json], { type: 'application/json' });
-  await (await database()).put(STORE, blob, historyKey(letter));
-}
-
-export async function deleteHistory(letter: string): Promise<void> {
-  await (await database()).delete(STORE, historyKey(letter));
-}
-
 export async function getBase(letter: string): Promise<Blob | undefined> {
+  await awaitPaintWrites(letter);
   return (await database()).get(STORE, baseKey(letter));
 }
 
-export async function putBase(letter: string, blob: Blob): Promise<void> {
-  await (await database()).put(STORE, blob, baseKey(letter));
+export type LetterPersistSnapshot = {
+  paint: Blob | null;
+  historyJson: string | null;
+  base: Blob | null;
+};
+
+/**
+ * Persiste PNG da grade, histórico JSON e base legada numa única escrita
+ * ordenada (captura síncrona do histórico; blobs async depois).
+ */
+export function queueLetterPersist(
+  letter: string,
+  snapshotPromise: Promise<LetterPersistSnapshot>,
+): Promise<void> {
+  const seq = bumpWriteSeq(letter);
+  return enqueue(letter, async () => {
+    const snapshot = await snapshotPromise;
+    if (writeSeq.get(letter) !== seq) return;
+    const db = await database();
+    if (snapshot.paint) await db.put(STORE, snapshot.paint, paintKey(letter));
+    else await db.delete(STORE, paintKey(letter));
+
+    if (snapshot.historyJson) {
+      const blob = new Blob([snapshot.historyJson], { type: 'application/json' });
+      await db.put(STORE, blob, historyKey(letter));
+    } else {
+      await db.delete(STORE, historyKey(letter));
+    }
+
+    if (snapshot.base) await db.put(STORE, snapshot.base, baseKey(letter));
+    else await db.delete(STORE, baseKey(letter));
+  });
 }
 
-export async function deleteBase(letter: string): Promise<void> {
-  await (await database()).delete(STORE, baseKey(letter));
+/** @deprecated Preferir queueLetterPersist; mantido para compat pontual. */
+export function queuePaintWrite(letter: string, blobPromise: Promise<Blob | null>): Promise<void> {
+  return queueLetterPersist(
+    letter,
+    blobPromise.then((paint) => ({ paint, historyJson: null, base: null })),
+  );
 }
 
-export async function deletePaint(letter: string): Promise<void> {
-  const db = await database();
-  await Promise.all([
-    db.delete(STORE, paintKey(letter)),
-    db.delete(STORE, historyKey(letter)),
-    db.delete(STORE, baseKey(letter)),
-  ]);
+export function queuePaintDelete(letter: string): Promise<void> {
+  const seq = bumpWriteSeq(letter);
+  return enqueue(letter, async () => {
+    if (writeSeq.get(letter) !== seq) return;
+    const db = await database();
+    await Promise.all([
+      db.delete(STORE, paintKey(letter)),
+      db.delete(STORE, historyKey(letter)),
+      db.delete(STORE, baseKey(letter)),
+    ]);
+  });
 }
 
-export async function deleteAllPaint(): Promise<void> {
+export async function queueDeleteAllPaint(): Promise<void> {
+  for (const letter of LETTERS) bumpWriteSeq(letter);
+  await Promise.all([...LETTERS].map((letter) => awaitPaintWrites(letter)));
   await (await database()).clear(STORE);
 }
 

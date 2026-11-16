@@ -122,6 +122,82 @@ test('desfazer remove um traço depois de voltar à letra', async ({ page }) => 
   await expect(undo).toBeDisabled();
 });
 
+test('refazer restaura o traço desfeito', async ({ page }) => {
+  await page.goto('/');
+
+  const sheet = page.locator('.sheet');
+  await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  const redo = page.getByRole('button', { name: 'Refazer' });
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx - box.width * 0.2, cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 24; i++) {
+    const t = i / 24;
+    await page.mouse.move(cx - box.width * 0.2 + box.width * 0.4 * t, cy + Math.sin(t * Math.PI * 2) * 30);
+  }
+  await page.mouse.up();
+
+  const painted = await paintPixels(page);
+  expect(painted).toBeGreaterThan(1000);
+
+  await undo.click();
+  expect(await paintPixels(page)).toBe(0);
+  await expect(redo).toBeEnabled();
+
+  await redo.click();
+  expect(await paintPixels(page)).toBe(painted);
+  await expect(undo).toBeEnabled();
+  await expect(redo).toBeDisabled();
+
+  // novo traço apaga a pilha de refazer
+  await page.mouse.move(cx - box.width * 0.2, cy + 60);
+  await page.mouse.down();
+  await page.mouse.move(cx + box.width * 0.2, cy + 60);
+  await page.mouse.up();
+  await expect(redo).toBeDisabled();
+});
+
+test('refazer funciona depois de voltar à letra', async ({ page }) => {
+  await page.goto('/');
+  await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
+
+  const sheet = page.locator('.sheet');
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  await page.mouse.move(cx - box.width * 0.2, cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 16; i++) {
+    const t = i / 16;
+    await page.mouse.move(cx - box.width * 0.2 + box.width * 0.4 * t, cy);
+  }
+  await page.mouse.up();
+  const painted = await paintPixels(page);
+  expect(painted).toBeGreaterThan(500);
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  const redo = page.getByRole('button', { name: 'Refazer' });
+  await undo.click();
+  expect(await paintPixels(page)).toBe(0);
+  await expect(redo).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Próxima letra' }).click();
+  await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
+  await page.getByRole('button', { name: 'Letra anterior' }).click();
+  await expect.poll(() => paintPixels(page), { timeout: 10_000 }).toBe(0);
+
+  await redo.click();
+  await expect.poll(() => paintPixels(page), { timeout: 5_000 }).toBe(painted);
+});
+
 test('a tinta nunca é alterada pela pintura', async ({ page }) => {
   await page.goto('/');
   await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);

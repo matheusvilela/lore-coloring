@@ -1,4 +1,4 @@
-export const TOOLS = ['brush', 'crayon', 'eraser', 'bucket'] as const;
+export const TOOLS = ['brush', 'crayon', 'bucket', 'eraser'] as const;
 export type Tool = (typeof TOOLS)[number];
 
 export const SIZE_LABELS = ['pequeno', 'médio', 'grande'] as const;

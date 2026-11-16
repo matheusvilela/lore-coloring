@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { parseSavedHistory } from './canvas/history';
-import { CANVAS_H, CANVAS_W, Painter } from './canvas/Painter';
+import { CANVAS_H, CANVAS_W, Painter, type HistoryState } from './canvas/Painter';
 import type { SizeIndex, Tool } from './canvas/tools';
 import { usePinchZoom } from './canvas/zoom';
 import { Confirm } from './components/Confirm';
@@ -9,17 +9,13 @@ import { LetterGrid } from './components/LetterGrid';
 import { LETTERS, assetUrl, type Letter } from './data/letters';
 import { DEFAULT_COLOR } from './data/palette';
 import {
-  deleteAllPaint,
-  deleteBase,
-  deleteHistory,
-  deletePaint,
   getBase,
   getHistory,
   getPaint,
   paintedLetters,
-  putBase,
-  putHistory,
-  putPaint,
+  queueDeleteAllPaint,
+  queueLetterPersist,
+  queuePaintDelete,
   requestPersistentStorage,
 } from './storage/db';
 
@@ -36,22 +32,13 @@ function preload(letter: string | undefined): void {
 
 const AUTOSAVE_MS = 800;
 
-async function persistLetterPaint(painter: Painter, letter: Letter): Promise<void> {
-  const blob = await painter.exportPaintBlob();
-  if (!blob) {
-    await deletePaint(letter);
-    return;
-  }
-  await putPaint(letter, blob);
+function queuePersistLetter(painter: Painter, letter: Letter): Promise<void> {
   const history = painter.exportHistory();
-  if (history.length > 0) {
-    await putHistory(letter, JSON.stringify(history));
-  } else {
-    await deleteHistory(letter);
-  }
-  const baseBlob = await painter.exportBaseBlob();
-  if (baseBlob) await putBase(letter, baseBlob);
-  else await deleteBase(letter);
+  const historyJson = history.length > 0 ? JSON.stringify(history) : null;
+  const snapshotPromise = Promise.all([painter.exportPaintBlob(), painter.exportBaseBlob()]).then(
+    ([paint, base]) => ({ paint, historyJson, base }),
+  );
+  return queueLetterPersist(letter, snapshotPromise);
 }
 
 export default function App() {
@@ -60,6 +47,9 @@ export default function App() {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const painterRef = useRef<Painter | null>(null);
   const letterRef = useRef<Letter>('A');
+  /** Letra cujos pixels estão na camada de cor (só muda após loadLetter commitar). */
+  const canvasLetterRef = useRef<Letter>('A');
+  const loadGenRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const scheduleSaveRef = useRef<() => void>(() => {});
 
@@ -69,6 +59,12 @@ export default function App() {
 
   const [index, setIndex] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  const onHistoryChange = useCallback((state: HistoryState) => {
+    setCanUndo(state.canUndo);
+    setCanRedo(state.canRedo);
+  }, []);
 
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState(DEFAULT_COLOR);
@@ -84,16 +80,21 @@ export default function App() {
     setPainted(await paintedLetters());
   }, []);
 
-  const flushSave = useCallback(async () => {
+  const cancelSaveTimer = useCallback(() => {
     if (saveTimer.current !== null) {
       window.clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+  }, []);
+
+  const flushSave = useCallback(async () => {
+    cancelSaveTimer();
     const painter = painterRef.current;
     if (!painter) return;
-    await persistLetterPaint(painter, letterRef.current);
+    const key = canvasLetterRef.current;
+    await queuePersistLetter(painter, key);
     await refreshPainted();
-  }, [refreshPainted]);
+  }, [cancelSaveTimer, refreshPainted]);
 
   const scheduleSave = useCallback(() => {
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
@@ -146,7 +147,7 @@ export default function App() {
     const painter = new Painter(
       sheet,
       {
-        onHistoryChange: setCanUndo,
+        onHistoryChange,
         onPaintDirty: () => scheduleSaveRef.current(),
       },
       { tool, color, sizeIndex },
@@ -212,20 +213,22 @@ export default function App() {
     const painter = painterRef.current;
     if (!painter || !painterReady) return;
 
+    const gen = ++loadGenRef.current;
     setCanUndo(false);
+    setCanRedo(false);
     void (async () => {
-      if (saveTimer.current !== null) {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-      }
+      cancelSaveTimer();
 
       const { outgoing, token } = painter.hold(letter);
       if (outgoing) {
-        await persistLetterPaint(painter, outgoing as Letter);
+        await queuePersistLetter(painter, outgoing as Letter);
         await refreshPainted();
       }
 
       const { sessionRestored } = await painter.loadLetter(letter, token);
+      if (gen !== loadGenRef.current || painter.getSettledLetter() !== letter) return;
+
+      canvasLetterRef.current = letter;
       if (!sessionRestored) {
         const historyBlob = await getHistory(letter);
         const baseBlob = await getBase(letter);
@@ -234,6 +237,7 @@ export default function App() {
         if (historyBlob) {
           const saved = parseSavedHistory(await historyBlob.text());
           if (baseBlob) await painter.restoreBase(baseBlob, token);
+          if (gen !== loadGenRef.current || painter.getSettledLetter() !== letter) return;
           painter.restoreHistory(saved, token);
         } else if (paintBlob) {
           await painter.restoreBase(paintBlob, token);
@@ -243,7 +247,7 @@ export default function App() {
       preload(LETTERS[(index + 1) % LETTERS.length]);
       preload(LETTERS[(index - 1 + LETTERS.length) % LETTERS.length]);
     })();
-  }, [letter, index, painterReady, refreshPainted]);
+  }, [letter, index, painterReady, cancelSaveTimer, refreshPainted]);
 
   const openGrid = useCallback(() => {
     void flushSave().then(() => setScreen('grid'));
@@ -263,6 +267,10 @@ export default function App() {
     painterRef.current?.undo();
   }, []);
 
+  const redo = useCallback(() => {
+    painterRef.current?.redo();
+  }, []);
+
   const clearLetter = useCallback(
     (target?: Letter) => {
       const key = target ?? letterRef.current;
@@ -270,7 +278,7 @@ export default function App() {
       if (key === letterRef.current) painter?.clear();
       else painter?.discardSession(key);
       void (async () => {
-        await deletePaint(key);
+        await queuePaintDelete(key);
         await refreshPainted();
       })();
     },
@@ -283,7 +291,7 @@ export default function App() {
     painter?.clear();
     painter?.discardAllSessions();
     void (async () => {
-      await deleteAllPaint();
+      await queueDeleteAllPaint();
       await refreshPainted();
     })();
   }, [refreshPainted]);
@@ -291,9 +299,20 @@ export default function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const meta = event.metaKey || event.ctrlKey;
-      if (meta && event.key.toLowerCase() === 'z') {
+      const key = event.key.toLowerCase();
+      if (meta && key === 'z' && event.shiftKey) {
+        event.preventDefault();
+        redo();
+        return;
+      }
+      if (meta && key === 'z' && !event.shiftKey) {
         event.preventDefault();
         undo();
+        return;
+      }
+      if (meta && key === 'y') {
+        event.preventDefault();
+        redo();
         return;
       }
       if (event.key === '0') resetZoom();
@@ -303,7 +322,7 @@ export default function App() {
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, resetZoom, undo]);
+  }, [go, redo, resetZoom, undo]);
 
   return (
     <div className="app">
@@ -359,10 +378,12 @@ export default function App() {
         color={color}
         sizeIndex={sizeIndex}
         canUndo={canUndo}
+        canRedo={canRedo}
         onTool={setTool}
         onColor={setColor}
         onSize={setSizeIndex}
         onUndo={undo}
+        onRedo={redo}
         onOpenGrid={openGrid}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
