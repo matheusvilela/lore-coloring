@@ -110,6 +110,56 @@ test('limpar letra na grade apaga só aquela célula', async ({ page }) => {
   await expect(wrap.getByRole('button', { name: 'Limpar letra A', exact: true })).toHaveCount(0);
 });
 
+async function clearPaintKey(page: Page, letter: string) {
+  await page.evaluate((ltr) => {
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('lore-coloring', 1);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction('paint', 'readwrite');
+        tx.objectStore('paint').delete(`lore:paint:${ltr}`);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  }, letter);
+}
+
+test('persiste pintura ao trocar de letra antes do autosave', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'IndexedDB compartilhado: um worker por vez');
+  await page.goto('/');
+  await clearPaintKey(page, 'A');
+  await clearPaintKey(page, 'Z');
+
+  await page.getByRole('button', { name: 'Grade de letras' }).click();
+  await expect(page.getByRole('region', { name: 'Grade de letras' })).toBeVisible();
+  await page.getByRole('button', { name: 'Letra Z', exact: true }).click();
+  await expect(page.locator('.sheet')).toHaveAttribute('data-letter', 'Z');
+  await expect.poll(() => countPixels(page, '.layer--ink'), { timeout: 10_000 }).toBeGreaterThan(2000);
+
+  const sheet = page.locator('.sheet');
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx - 80, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 80, cy, { steps: 16 });
+  await page.mouse.up();
+
+  await expect.poll(() => paintPixels(page)).toBeGreaterThan(1000);
+
+  await page.getByRole('button', { name: 'Próxima letra' }).click();
+  await expect(page.locator('.letter-status')).toHaveText('A');
+  await expect.poll(() => countPixels(page, '.layer--ink'), { timeout: 10_000 }).toBeGreaterThan(2000);
+  await expect.poll(() => paintPixels(page)).toBe(0);
+
+  await page.getByRole('button', { name: 'Letra anterior' }).click();
+  await expect(page.locator('.letter-status')).toHaveText('Z');
+  await expect(page.locator('.sheet')).toHaveAttribute('data-letter', 'Z');
+  await expect.poll(() => paintPixels(page), { timeout: 10_000 }).toBeGreaterThan(500);
+});
+
 test('a tinta volta ao escolher letra na grade', async ({ page }) => {
   await page.goto('/');
   await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);

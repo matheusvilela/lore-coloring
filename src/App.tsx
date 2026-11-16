@@ -8,11 +8,11 @@ import { LetterGrid } from './components/LetterGrid';
 import { LETTERS, assetUrl, type Letter } from './data/letters';
 import { DEFAULT_COLOR } from './data/palette';
 import {
-  deleteAllPaint,
-  deletePaint,
   getPaint,
   paintedLetters,
-  putPaint,
+  queueDeleteAllPaint,
+  queuePaintDelete,
+  queuePaintWrite,
   requestPersistentStorage,
 } from './storage/db';
 
@@ -35,6 +35,9 @@ export default function App() {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const painterRef = useRef<Painter | null>(null);
   const letterRef = useRef<Letter>('A');
+  /** Letra cujos pixels estão na camada de cor (só muda após loadLetter commitar). */
+  const canvasLetterRef = useRef<Letter>('A');
+  const loadGenRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const scheduleSaveRef = useRef<() => void>(() => {});
 
@@ -59,19 +62,22 @@ export default function App() {
     setPainted(await paintedLetters());
   }, []);
 
-  const flushSave = useCallback(async () => {
+  const cancelSaveTimer = useCallback(() => {
     if (saveTimer.current !== null) {
       window.clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+  }, []);
+
+  const flushSave = useCallback(async () => {
+    cancelSaveTimer();
     const painter = painterRef.current;
     if (!painter) return;
-    const blob = await painter.exportPaintBlob();
-    const key = letterRef.current;
-    if (blob) await putPaint(key, blob);
-    else await deletePaint(key);
+    const key = canvasLetterRef.current;
+    const blobPromise = painter.exportPaintBlob();
+    await queuePaintWrite(key, blobPromise);
     await refreshPainted();
-  }, [refreshPainted]);
+  }, [cancelSaveTimer, refreshPainted]);
 
   const scheduleSave = useCallback(() => {
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
@@ -190,22 +196,22 @@ export default function App() {
     const painter = painterRef.current;
     if (!painter || !painterReady) return;
 
+    const gen = ++loadGenRef.current;
     setCanUndo(false);
     void (async () => {
-      if (saveTimer.current !== null) {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-      }
+      cancelSaveTimer();
 
       const { outgoing, token } = painter.hold(letter);
       if (outgoing) {
-        const blob = await painter.exportPaintBlob();
-        if (blob) await putPaint(outgoing, blob);
-        else await deletePaint(outgoing);
+        const blobPromise = painter.exportPaintBlob();
+        await queuePaintWrite(outgoing, blobPromise);
         await refreshPainted();
       }
 
       const { sessionRestored } = await painter.loadLetter(letter, token);
+      if (gen !== loadGenRef.current || painter.getSettledLetter() !== letter) return;
+
+      canvasLetterRef.current = letter;
       if (!sessionRestored) {
         const saved = await getPaint(letter);
         if (saved) await painter.restorePaint(saved, token);
@@ -214,7 +220,7 @@ export default function App() {
       preload(LETTERS[(index + 1) % LETTERS.length]);
       preload(LETTERS[(index - 1 + LETTERS.length) % LETTERS.length]);
     })();
-  }, [letter, index, painterReady, refreshPainted]);
+  }, [letter, index, painterReady, cancelSaveTimer, refreshPainted]);
 
   const openGrid = useCallback(() => {
     void flushSave().then(() => setScreen('grid'));
@@ -241,7 +247,7 @@ export default function App() {
       if (key === letterRef.current) painter?.clear();
       else painter?.discardSession(key);
       void (async () => {
-        await deletePaint(key);
+        await queuePaintDelete(key);
         await refreshPainted();
       })();
     },
@@ -254,7 +260,7 @@ export default function App() {
     painter?.clear();
     painter?.discardAllSessions();
     void (async () => {
-      await deleteAllPaint();
+      await queueDeleteAllPaint();
       await refreshPainted();
     })();
   }, [refreshPainted]);

@@ -141,6 +141,11 @@ export class Painter {
     return { outgoing, token };
   }
 
+  /** Letra cuja arte terminou de carregar na tela (ou `null` enquanto troca). */
+  getSettledLetter(): string | null {
+    return this.settledLetter;
+  }
+
   /** Descarta o histórico estacionado de uma letra (ex.: limpar na grade). */
   discardSession(letter: string): void {
     const parked = this.sessions.get(letter);
