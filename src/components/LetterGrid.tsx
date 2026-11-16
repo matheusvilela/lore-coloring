@@ -7,9 +7,18 @@ type Props = {
   painted: Set<string>;
   onPick: (letter: Letter) => void;
   onClose: () => void;
+  onClearLetter: (letter: Letter) => void;
+  onClearAll: () => void;
 };
 
-export function LetterGrid({ current, painted, onPick, onClose }: Props) {
+export function LetterGrid({
+  current,
+  painted,
+  onPick,
+  onClose,
+  onClearLetter,
+  onClearAll,
+}: Props) {
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const objectUrls = useRef<string[]>([]);
 
@@ -45,23 +54,46 @@ export function LetterGrid({ current, painted, onPick, onClose }: Props) {
           <ArrowBack />
         </button>
         <p className="grid-screen__title">Suas letras</p>
+        <button
+          type="button"
+          className="btn nav grid-screen__clear-all"
+          onClick={onClearAll}
+          aria-label="Limpar todas as letras"
+        >
+          <TrashIcon stacked />
+        </button>
       </header>
 
       <ul className="letter-grid">
         {LETTERS.map((letter) => (
           <li key={letter}>
-            <button
-              type="button"
-              className={`letter-cell${letter === current ? ' is-current' : ''}`}
-              aria-label={`Letra ${letter}`}
-              aria-current={letter === current ? 'true' : undefined}
-              onClick={() => onPick(letter)}
-            >
-              <img className="letter-cell__thumb" src={assetUrl(letter, 'thumb.webp')} alt="" />
-              {previews[letter] ? (
-                <img className="letter-cell__paint" src={previews[letter]} alt="" />
+            <div className="letter-cell-wrap">
+              <button
+                type="button"
+                className={`letter-cell${letter === current ? ' is-current' : ''}`}
+                aria-label={`Letra ${letter}`}
+                aria-current={letter === current ? 'true' : undefined}
+                onClick={() => onPick(letter)}
+              >
+                <img className="letter-cell__thumb" src={assetUrl(letter, 'thumb.webp')} alt="" />
+                {previews[letter] ? (
+                  <img className="letter-cell__paint" src={previews[letter]} alt="" />
+                ) : null}
+              </button>
+              {painted.has(letter) ? (
+                <button
+                  type="button"
+                  className="btn letter-cell__clear"
+                  aria-label={`Limpar letra ${letter}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onClearLetter(letter);
+                  }}
+                >
+                  <TrashIcon />
+                </button>
               ) : null}
-            </button>
+            </div>
           </li>
         ))}
       </ul>
@@ -80,6 +112,27 @@ function ArrowBack() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function TrashIcon({ stacked = false }: { stacked?: boolean }) {
+  if (stacked) {
+    return (
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path d="M5 7h14" strokeLinecap="round" />
+        <path d="M8 7V5h8v2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M7 7l1 13h8l1-13" strokeLinejoin="round" />
+        <path d="M10 10v7M14 10v7" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M6 7h12" strokeLinecap="round" />
+      <path d="M9 7V5h6v2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 7l.8 12.2h6.4L16 7" strokeLinejoin="round" />
     </svg>
   );
 }

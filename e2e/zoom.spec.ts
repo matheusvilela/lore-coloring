@@ -202,7 +202,20 @@ test('após voltar numa letra salva, a pinça não apaga a pintura', async ({ pa
   expect(await paintPixels(page)).toBeGreaterThan(800);
 });
 
-test('a tecla 0 volta ao encaixe e trocar de letra zera o zoom', async ({ page }) => {
+test('botões de zoom no dock ajustam a folha', async ({ page }) => {
+  await ready(page);
+  expect((await sheetBox(page)).transform).toBe('');
+
+  await page.getByRole('button', { name: 'Zoom mais' }).click();
+  await expect
+    .poll(async () => (await sheetBox(page)).transform)
+    .not.toBe('');
+
+  await page.getByRole('button', { name: 'Restaurar zoom original' }).click();
+  expect((await sheetBox(page)).transform).toBe('');
+});
+
+test('a tecla 0 volta ao encaixe; trocar de letra mantém o zoom', async ({ page }) => {
   await ready(page);
   await pinch(page, 120, 380);
   expect((await sheetBox(page)).transform).not.toBe('');
@@ -211,7 +224,10 @@ test('a tecla 0 volta ao encaixe e trocar de letra zera o zoom', async ({ page }
   expect((await sheetBox(page)).transform).toBe('');
 
   await pinch(page, 120, 380);
+  const zoomed = await sheetBox(page);
+  expect(zoomed.transform).not.toBe('');
+
   await page.getByRole('button', { name: 'Próxima letra' }).click();
   await expect(page.locator('.letter-status')).toHaveText('B');
-  expect((await sheetBox(page)).transform).toBe('');
+  expect((await sheetBox(page)).transform).toBe(zoomed.transform);
 });

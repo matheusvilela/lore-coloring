@@ -440,10 +440,16 @@ body {
 }
 
 .grid-screen__title {
+  flex: 1;
   margin: 0;
   font-size: 22px;
   font-weight: 800;
   color: var(--accent);
+}
+
+.grid-screen__clear-all {
+  flex-shrink: 0;
+  color: #6d655c;
 }
 
 .letter-grid {
@@ -455,6 +461,10 @@ body {
   gap: 10px;
   overflow: auto;
   flex: 1;
+}
+
+.letter-cell-wrap {
+  position: relative;
 }
 
 .letter-cell {
@@ -490,6 +500,19 @@ body {
 
 .letter-cell__thumb {
   z-index: 1;
+}
+
+.letter-cell__clear {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6d655c;
+  box-shadow: 0 2px 8px rgba(42, 38, 34, 0.18);
 }
 
 /* ---------- celulares estreitos: controles um pouco menores ---------- */

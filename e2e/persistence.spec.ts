@@ -80,6 +80,28 @@ test('na grade o contorno da letra fica acima da pintura', async ({ page }) => {
   expect(Number(layers.thumbZ)).toBeGreaterThan(Number(layers.paintZ));
 });
 
+test('limpar letra na grade apaga só aquela célula', async ({ page }) => {
+  await page.goto('/');
+  await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);
+
+  const sheet = page.locator('.sheet');
+  const box = (await sheet.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i++) {
+    const t = i / 12;
+    await page.mouse.move(box.x + box.width * 0.3 * t, box.y + box.height / 2);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(900);
+
+  await page.getByRole('button', { name: 'Grade de letras' }).click();
+  const cell = page.getByRole('button', { name: 'Letra A' });
+  await expect(cell.locator('.letter-cell__paint')).toBeVisible();
+  await page.getByRole('button', { name: 'Limpar letra A' }).click();
+  await expect(cell.locator('.letter-cell__paint')).toHaveCount(0);
+});
+
 test('a tinta volta ao escolher letra na grade', async ({ page }) => {
   await page.goto('/');
   await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);

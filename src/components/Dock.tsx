@@ -24,8 +24,9 @@ type Props = {
   onSize: (index: SizeIndex) => void;
   onUndo: () => void;
   onOpenGrid: () => void;
-  onClearLetter: () => void;
-  onClearAll: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
 };
 
 export function Dock({
@@ -38,8 +39,9 @@ export function Dock({
   onSize,
   onUndo,
   onOpenGrid,
-  onClearLetter,
-  onClearAll,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
 }: Props) {
   const stillUsesSize = toolUsesSize(tool);
 
@@ -50,11 +52,14 @@ export function Dock({
           <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
             <GridIcon />
           </button>
-          <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
-            <ClearLetterIcon />
+          <button type="button" className="tool tool--meta" onClick={onZoomIn} aria-label="Zoom mais">
+            <ZoomInIcon />
           </button>
-          <button type="button" className="tool tool--meta" onClick={onClearAll} aria-label="Limpar todas as letras">
-            <ClearAllIcon />
+          <button type="button" className="tool tool--meta" onClick={onZoomOut} aria-label="Zoom menos">
+            <ZoomOutIcon />
+          </button>
+          <button type="button" className="tool tool--meta" onClick={onZoomReset} aria-label="Restaurar zoom original">
+            <ZoomResetIcon />
           </button>
         </div>
 
@@ -210,23 +215,31 @@ function GridIcon() {
   );
 }
 
-function ClearLetterIcon() {
+function ZoomInIcon() {
   return (
     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-      <path d="M6 7h12" strokeLinecap="round" />
-      <path d="M9 7V5h6v2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M8 7l.8 12.2h6.4L16 7" strokeLinejoin="round" />
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4.5 4.5" strokeLinecap="round" />
+      <path d="M11 8.5v5M8.5 11h5" strokeLinecap="round" />
     </svg>
   );
 }
 
-function ClearAllIcon() {
+function ZoomOutIcon() {
   return (
     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-      <path d="M5 7h14" strokeLinecap="round" />
-      <path d="M8 7V5h8v2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M7 7l1 13h8l1-13" strokeLinejoin="round" />
-      <path d="M10 10v7M14 10v7" strokeLinecap="round" />
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4.5 4.5" strokeLinecap="round" />
+      <path d="M8.5 11h5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ZoomResetIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path d="M5 7h10v10H5z" strokeLinejoin="round" />
+      <path d="M9 7V5h10v10h-2" strokeLinejoin="round" />
     </svg>
   );
 }

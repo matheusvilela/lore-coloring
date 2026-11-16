@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, type RefObject } from 'react';
 const MAX_SCALE = 4;
 /** Abaixo disso, soltar os dedos volta a folha ao encaixe original. */
 const SNAP_BACK = 1.03;
+/** Botões + / − do dock. */
+const BUTTON_ZOOM_FACTOR = 1.28;
 
 type View = { scale: number; x: number; y: number };
 /** Posição/tamanho da folha sem a transformação aplicada, relativa ao palco. */
@@ -60,44 +62,83 @@ export function usePinchZoom(
     apply();
   }, [apply]);
 
-  useEffect(() => {
+  /** Lê a geometria da folha descontando a transformação que já está nela. */
+  const readBase = useCallback((): boolean => {
+    const stage = stageRef.current;
+    const sheet = sheetRef.current;
+    if (!stage || !sheet) return false;
+
+    const sheetRect = sheet.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const current = view.current;
+    base.current = {
+      left: sheetRect.left - stageRect.left - current.x,
+      top: sheetRect.top - stageRect.top - current.y,
+      width: sheetRect.width / current.scale,
+      height: sheetRect.height / current.scale,
+    };
+    return true;
+  }, [sheetRef, stageRef]);
+
+  /** Não deixa a folha sair de vista: encosta as bordas no palco. */
+  const clampView = useCallback((): void => {
     const stage = stageRef.current;
     if (!stage) return;
 
-    /** Lê a geometria da folha descontando a transformação que já está nela. */
-    const readBase = (): boolean => {
-      const sheet = sheetRef.current;
-      if (!sheet) return false;
+    const current = view.current;
+    if (current.scale <= 1) {
+      view.current = { scale: 1, x: 0, y: 0 };
+      return;
+    }
 
-      const sheetRect = sheet.getBoundingClientRect();
-      const stageRect = stage.getBoundingClientRect();
+    const { left, top, width, height } = base.current;
+    const w = width * current.scale;
+    const h = height * current.scale;
+    const stageW = stage.clientWidth;
+    const stageH = stage.clientHeight;
+
+    current.x = w <= stageW ? (stageW - w) / 2 - left : clamp(current.x, stageW - left - w, -left);
+    current.y = h <= stageH ? (stageH - h) / 2 - top : clamp(current.y, stageH - top - h, -top);
+  }, [stageRef]);
+
+  const scaleAround = useCallback(
+    (nextScale: number, mx: number, my: number): void => {
+      if (!readBase()) return;
       const current = view.current;
-      base.current = {
-        left: sheetRect.left - stageRect.left - current.x,
-        top: sheetRect.top - stageRect.top - current.y,
-        width: sheetRect.width / current.scale,
-        height: sheetRect.height / current.scale,
+      const localX = (mx - base.current.left - current.x) / current.scale;
+      const localY = (my - base.current.top - current.y) / current.scale;
+      view.current = {
+        scale: nextScale,
+        x: mx - base.current.left - nextScale * localX,
+        y: my - base.current.top - nextScale * localY,
       };
-      return true;
-    };
+      clampView();
+      apply();
+    },
+    [apply, clampView, readBase],
+  );
 
-    /** Não deixa a folha sair de vista: encosta as bordas no palco. */
-    const clampView = (): void => {
-      const current = view.current;
-      if (current.scale <= 1) {
-        view.current = { scale: 1, x: 0, y: 0 };
-        return;
-      }
+  const zoomIn = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const mx = stage.clientWidth / 2;
+    const my = stage.clientHeight / 2;
+    const next = clamp(view.current.scale * BUTTON_ZOOM_FACTOR, 1, MAX_SCALE);
+    scaleAround(next, mx, my);
+  }, [scaleAround, stageRef]);
 
-      const { left, top, width, height } = base.current;
-      const w = width * current.scale;
-      const h = height * current.scale;
-      const stageW = stage.clientWidth;
-      const stageH = stage.clientHeight;
+  const zoomOut = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const mx = stage.clientWidth / 2;
+    const my = stage.clientHeight / 2;
+    const next = clamp(view.current.scale / BUTTON_ZOOM_FACTOR, 1, MAX_SCALE);
+    scaleAround(next, mx, my);
+  }, [scaleAround, stageRef]);
 
-      current.x = w <= stageW ? (stageW - w) / 2 - left : clamp(current.x, stageW - left - w, -left);
-      current.y = h <= stageH ? (stageH - h) / 2 - top : clamp(current.y, stageH - top - h, -top);
-    };
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
 
     const startGesture = (): void => {
       const ids = [...pointers.current.keys()].slice(0, 2) as [number, number];
@@ -173,20 +214,14 @@ export function usePinchZoom(
       if (!readBase()) return;
 
       const stageRect = stage.getBoundingClientRect();
-      const current = view.current;
       const mx = event.clientX - stageRect.left;
       const my = event.clientY - stageRect.top;
-      const localX = (mx - base.current.left - current.x) / current.scale;
-      const localY = (my - base.current.top - current.y) / current.scale;
-      const scale = clamp(current.scale * Math.exp(-event.deltaY * 0.012), 1, MAX_SCALE);
-
-      view.current = {
-        scale,
-        x: mx - base.current.left - scale * localX,
-        y: my - base.current.top - scale * localY,
-      };
-      clampView();
-      apply();
+      const scale = clamp(
+        view.current.scale * Math.exp(-event.deltaY * 0.012),
+        1,
+        MAX_SCALE,
+      );
+      scaleAround(scale, mx, my);
     };
 
     stage.addEventListener('pointerdown', onPointerDown);
@@ -202,9 +237,9 @@ export function usePinchZoom(
       window.removeEventListener('pointercancel', onPointerUp);
       stage.removeEventListener('wheel', onWheel);
     };
-  }, [apply, reset, sheetRef, stageRef]);
+  }, [apply, clampView, readBase, reset, scaleAround, sheetRef, stageRef]);
 
-  return { reset, apply };
+  return { reset, zoomIn, zoomOut, apply };
 }
 
 function clamp(value: number, min: number, max: number): number {

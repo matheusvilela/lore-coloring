@@ -86,7 +86,7 @@ export default function App() {
     painterRef.current?.cancelStroke();
   }, []);
 
-  const { reset: resetZoom } = usePinchZoom(stageRef, sheetRef, cancelStroke);
+  const { reset: resetZoom, zoomIn, zoomOut } = usePinchZoom(stageRef, sheetRef, cancelStroke);
 
   useEffect(() => {
     void requestPersistentStorage();
@@ -169,7 +169,6 @@ export default function App() {
     if (!painter || !painterReady) return;
 
     setCanUndo(false);
-    resetZoom();
     void (async () => {
       await painter.loadLetter(letter);
       const saved = await getPaint(letter);
@@ -177,7 +176,7 @@ export default function App() {
       preload(LETTERS[(index + 1) % LETTERS.length]);
       preload(LETTERS[(index - 1 + LETTERS.length) % LETTERS.length]);
     })();
-  }, [letter, index, resetZoom, painterReady]);
+  }, [letter, index, painterReady]);
 
   const openGrid = useCallback(() => {
     void flushSave().then(() => setScreen('grid'));
@@ -197,13 +196,17 @@ export default function App() {
     painterRef.current?.undo();
   }, []);
 
-  const clearLetter = useCallback(() => {
-    painterRef.current?.clear();
-    void (async () => {
-      await deletePaint(letterRef.current);
-      await refreshPainted();
-    })();
-  }, [refreshPainted]);
+  const clearLetter = useCallback(
+    (target?: Letter) => {
+      const key = target ?? letterRef.current;
+      if (key === letterRef.current) painterRef.current?.clear();
+      void (async () => {
+        await deletePaint(key);
+        await refreshPainted();
+      })();
+    },
+    [refreshPainted],
+  );
 
   const clearAll = useCallback(() => {
     setConfirmClearAll(false);
@@ -279,8 +282,9 @@ export default function App() {
         onSize={setSizeIndex}
         onUndo={undo}
         onOpenGrid={openGrid}
-        onClearLetter={clearLetter}
-        onClearAll={() => setConfirmClearAll(true)}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onZoomReset={resetZoom}
       />
 
       {confirmClearAll ? (
@@ -299,6 +303,8 @@ export default function App() {
           painted={painted}
           onPick={pickLetter}
           onClose={() => setScreen('studio')}
+          onClearLetter={clearLetter}
+          onClearAll={() => setConfirmClearAll(true)}
         />
       ) : null}
     </div>
