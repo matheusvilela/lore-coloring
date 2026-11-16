@@ -308,12 +308,6 @@ body {
   display: none;
 }
 
-.dock__block--row-sep {
-  border-top: 1px solid rgba(42, 38, 34, 0.14);
-  padding-top: 6px;
-  margin-top: 2px;
-}
-
 .sizes {
   display: flex;
   align-items: center;
@@ -439,7 +433,15 @@ body {
   .dock__controls {
     flex-direction: column;
     align-items: stretch;
-    gap: 0;
+    gap: 6px;
+  }
+
+  .dock__block--actions {
+    order: -1;
+  }
+
+  .dock__sep--v {
+    display: none;
   }
 
   .dock__block--actions,
@@ -472,10 +474,6 @@ body {
     flex-shrink: 0;
     gap: 8px;
     background: var(--glass-bg);
-  }
-
-  .dock__block--paint {
-    order: -1;
   }
 
   .palette {
