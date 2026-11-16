@@ -139,13 +139,34 @@ body {
   background: transparent;
   border-radius: 0;
   box-shadow: none;
-  overflow: hidden;
+  overflow: visible;
   touch-action: none;
   transform-origin: 0 0;
   will-change: transform;
   /* impede o iOS de "selecionar" o desenho */
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* sombra na “folha” (mesmo tamanho das camadas, não do palco inteiro) */
+.sheet::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: var(--sheet-content-w, 100%);
+  height: var(--sheet-content-h, 100%);
+  transform: translate(-50%, -50%);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+.sheet .layer {
+  border-radius: 16px;
+  overflow: hidden;
 }
 
 .sheet {
