@@ -19,10 +19,12 @@ type Props = {
   color: string;
   sizeIndex: SizeIndex;
   canUndo: boolean;
+  canRedo: boolean;
   onTool: (tool: Tool) => void;
   onColor: (hex: string) => void;
   onSize: (index: SizeIndex) => void;
   onUndo: () => void;
+  onRedo: () => void;
   onOpenGrid: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -34,10 +36,12 @@ export function Dock({
   color,
   sizeIndex,
   canUndo,
+  canRedo,
   onTool,
   onColor,
   onSize,
   onUndo,
+  onRedo,
   onOpenGrid,
   onZoomIn,
   onZoomOut,
@@ -48,64 +52,74 @@ export function Dock({
   return (
     <footer className="dock">
       <div className="dock__tools">
-        <div className="dock__row dock__row--meta">
-          <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
-            <GridIcon />
-          </button>
-          <button type="button" className="tool tool--meta" onClick={onZoomIn} aria-label="Zoom mais">
-            <ZoomInIcon />
-          </button>
-          <button type="button" className="tool tool--meta" onClick={onZoomOut} aria-label="Zoom menos">
-            <ZoomOutIcon />
-          </button>
-          <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
-            <ClearLetterIcon />
-          </button>
-        </div>
-
-        <div className="dock__row dock__row--main">
-          <div className="tools" role="group" aria-label="Ferramentas">
-            {TOOLS.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`tool${item === tool ? ' is-active' : ''}`}
-                aria-label={TOOL_LABELS[item]}
-                aria-pressed={item === tool}
-                onClick={() => onTool(item)}
-              >
-                <ToolIcon tool={item} />
+        <div className="dock__controls">
+          <div className="dock__block dock__block--actions">
+            <div className="dock__actions" role="group" aria-label="Ações">
+              <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
+                <GridIcon />
               </button>
-            ))}
-          </div>
-
-          <div className="sizes" role="group" aria-label="Tamanho do traço">
-            {SIZE_LABELS.map((label, index) => (
               <button
-                key={label}
                 type="button"
-                className={`size${index === sizeIndex ? ' is-active' : ''}`}
-                aria-label={`Tamanho ${label}`}
-                aria-pressed={index === sizeIndex}
-                disabled={!stillUsesSize}
-                onClick={() => onSize(index as SizeIndex)}
+                className="tool tool--meta"
+                onClick={onUndo}
+                disabled={!canUndo}
+                aria-label="Desfazer"
               >
-                <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
+                <UndoIcon />
               </button>
-            ))}
-          </div>
-
-          <div className="dock__end">
+              <button
+                type="button"
+                className="tool tool--meta"
+                onClick={onRedo}
+                disabled={!canRedo}
+                aria-label="Refazer"
+              >
+                <RedoIcon />
+              </button>
+              <button type="button" className="tool tool--meta" onClick={onZoomIn} aria-label="Zoom mais">
+                <ZoomInIcon />
+              </button>
+              <button type="button" className="tool tool--meta" onClick={onZoomOut} aria-label="Zoom menos">
+                <ZoomOutIcon />
+              </button>
+              <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
+                <ClearLetterIcon />
+              </button>
+            </div>
             <span className="dock__sep" aria-hidden="true" />
-            <button
-              type="button"
-              className="tool tool--undo"
-              onClick={onUndo}
-              disabled={!canUndo}
-              aria-label="Desfazer"
-            >
-              <UndoIcon />
-            </button>
+          </div>
+
+          <div className="dock__block dock__block--paint">
+            <div className="tools" role="group" aria-label="Ferramentas">
+              {TOOLS.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`tool${item === tool ? ' is-active' : ''}`}
+                  aria-label={TOOL_LABELS[item]}
+                  aria-pressed={item === tool}
+                  onClick={() => onTool(item)}
+                >
+                  <ToolIcon tool={item} />
+                </button>
+              ))}
+            </div>
+
+            <div className="sizes" role="group" aria-label="Tamanho do traço">
+              {SIZE_LABELS.map((label, index) => (
+                <button
+                  key={label}
+                  type="button"
+                  className={`size${index === sizeIndex ? ' is-active' : ''}`}
+                  aria-label={`Tamanho ${label}`}
+                  aria-pressed={index === sizeIndex}
+                  disabled={!stillUsesSize}
+                  onClick={() => onSize(index as SizeIndex)}
+                >
+                  <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -257,6 +271,26 @@ function UndoIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+    >
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="26"
+      height="26"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ transform: 'scaleX(-1)' }}
     >
       <path d="M9 14 4 9l5-5" />
       <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" />
