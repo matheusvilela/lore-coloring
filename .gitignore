@@ -3,3 +3,5 @@ node_modules
 dist
 _qa
 .tmp-assets
+test-results
+playwright-report

@@ -226,6 +226,7 @@ lore/
 
 1. **Layout da paleta no celular**: grade fluida 4×6 (proposta em A.3) vs. duas linhas com scroll horizontal. Testar com o dedo antes de fechar.
 2. **Paleta de 24 pode ficar apagada.** Os 8 tons extras de alta saturação que eu havia proposto (magenta `#E64980`, ciano `#22D3EE`, roxo vivo `#7048E8`, laranja-neon `#FF922B`, dourado `#FAB005`, rosa-chiclete `#FF8FCF`, marrom `#8B5E34`, cinza-claro `#CED4DA`) foram retirados junto com a mudança de ordem. Reavaliar depois do primeiro teste com a criança.
+3. **Retrato de celular desperdiça altura.** A arte é paisagem (1,31:1), então em retrato a folha é limitada pela largura (366 × 279 num iPhone de 390) e sobram ~480 px verticais. A paleta e as ferramentas ocupam parte disso na Etapa 3; se ainda sobrar vazio, as saídas são (a) pinça para ampliar a letra, (b) ferramentas em gaveta recolhível. Não vale mexer na arte nem em canvas por letra: o canvas fixo de D7 é o que garante coordenadas iguais em qualquer tela e a persistência simples.
 
 ---
 
@@ -282,6 +283,14 @@ Conclusão: o potrace preservou dentes, cílios, antenas, hastes dos óculos e m
 - Loader das letras + pager A↔Z. Sem ferramentas ainda.
 
 **Gate 2:** pintar com um pincel fixo, desfazer e navegar sem travar em 60 fps no celular.
+
+### Resultado da Etapa 2 (16/11/2026)
+
+- Stack real: Vite 8, React 19.3, TypeScript 7 `strict`, zero libs de canvas.
+- `Painter` com as 3 camadas (`paint` / `wet` / `ink`), `setPointerCapture`, `getCoalescedEvents` e suavização quadrática compartilhada com o replay do undo (`traceStroke`).
+- e2e no Playwright em dois projetos (`desktop` 1280×900 e `celular` Pixel 7): pintar, desfazer, navegar e a garantia de que a camada de tinta nunca muda.
+- **Bug pego pelos screenshots:** a folha usava `getBoundingClientRect()` do palco, que inclui o padding — no celular ela media 390 px num palco de 390 px com 12 px de padding e vazava 12 px pela direita. Corrigido medindo `clientWidth/clientHeight` menos o padding computado; 0 de overflow em 390×844, 360×740 e 844×390.
+- **Achado de composição:** a arte é paisagem (1,31:1). Em retrato a folha fica limitada pela largura (366 × 279 num iPhone de 390), sobrando muito espaço vertical. Mantido assim de propósito: é exatamente onde entram paleta e ferramentas na Etapa 3 (ver Pendência 3).
 
 ### Etapa 3 · Ferramentas (1–2 dias)
 
