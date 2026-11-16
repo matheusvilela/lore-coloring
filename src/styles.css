@@ -731,6 +731,7 @@ body {
 
 .letter-cell-wrap {
   position: relative;
+  container-type: inline-size;
 }
 
 .letter-cell {
@@ -768,17 +769,31 @@ body {
   z-index: 1;
 }
 
-.letter-cell__clear {
+.letter-cell__actions {
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: 4px;
+  right: 4px;
   z-index: 2;
-  width: 34px;
-  height: 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  /* cabe na célula mais baixa (~70px): dois botões + vão + margem */
+  --cell-btn: clamp(26px, 22cqw, 34px);
+}
+
+.letter-cell__clear,
+.letter-cell__export {
+  width: var(--cell-btn);
+  height: var(--cell-btn);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.92);
   color: #6d655c;
-  box-shadow: 0 2px 8px rgba(42, 38, 34, 0.18);
+  background: var(--glass-bg-strong);
+  /* mesma receita do vidro das setas; o inline nos botões repete o filtro
+     porque o minify troca esta propriedade pelo prefixo -webkit */
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  box-shadow: 0 2px 12px rgba(42, 38, 34, 0.14);
 }
 
 /* ---------- celulares estreitos: controles um pouco menores ---------- */

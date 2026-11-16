@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { letterPngFilename, offerSavePng, renderLetterPng } from '../canvas/exportLetter';
 import { assetUrl, LETTERS, type Letter } from '../data/letters';
 import { getPaint } from '../storage/db';
+
+/** O minify de produção deixa só `-webkit-backdrop-filter`, que o Chrome atual descarta. */
+const GLASS_FILTER = 'blur(var(--glass-blur)) saturate(1.35)';
 
 type Props = {
   current: Letter;
@@ -20,7 +24,30 @@ export function LetterGrid({
   onClearAll,
 }: Props) {
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [exporting, setExporting] = useState<Letter | null>(null);
   const objectUrls = useRef<string[]>([]);
+  const mounted = useRef(true);
+  const exportingRef = useRef<Letter | null>(null);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const exportLetter = async (letter: Letter) => {
+    if (exportingRef.current) return;
+    exportingRef.current = letter;
+    setExporting(letter);
+    try {
+      const blob = await renderLetterPng(letter);
+      await offerSavePng(blob, letterPngFilename(letter));
+    } finally {
+      exportingRef.current = null;
+      if (mounted.current) setExporting(null);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -81,17 +108,33 @@ export function LetterGrid({
                 <img className="letter-cell__ink" src={assetUrl(letter, 'ink.png')} alt="" />
               </button>
               {previews[letter] || painted.has(letter) ? (
-                <button
-                  type="button"
-                  className="btn letter-cell__clear"
-                  aria-label={`Limpar letra ${letter}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onClearLetter(letter);
-                  }}
-                >
-                  <TrashIcon />
-                </button>
+                <div className="letter-cell__actions">
+                  <button
+                    type="button"
+                    className="btn letter-cell__clear"
+                    style={{ backdropFilter: GLASS_FILTER }}
+                    aria-label={`Limpar letra ${letter}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onClearLetter(letter);
+                    }}
+                  >
+                    <TrashIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn letter-cell__export"
+                    style={{ backdropFilter: GLASS_FILTER }}
+                    aria-label={`Exportar letra ${letter}`}
+                    disabled={exporting === letter}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void exportLetter(letter);
+                    }}
+                  >
+                    <ExportIcon />
+                  </button>
+                </div>
               ) : null}
             </div>
           </li>
@@ -112,6 +155,16 @@ function ArrowBack() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M12 4v10" strokeLinecap="round" />
+      <path d="M8 10l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 19h12" strokeLinecap="round" />
     </svg>
   );
 }
