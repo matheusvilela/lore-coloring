@@ -28,6 +28,14 @@ export function paintKey(letter: string): string {
   return `lore:paint:${letter}`;
 }
 
+function historyKey(letter: string): string {
+  return `lore:history:${letter}`;
+}
+
+function baseKey(letter: string): string {
+  return `lore:base:${letter}`;
+}
+
 export async function getPaint(letter: string): Promise<Blob | undefined> {
   return (await database()).get(STORE, paintKey(letter));
 }
@@ -36,8 +44,38 @@ export async function putPaint(letter: string, blob: Blob): Promise<void> {
   await (await database()).put(STORE, blob, paintKey(letter));
 }
 
+export async function getHistory(letter: string): Promise<Blob | undefined> {
+  return (await database()).get(STORE, historyKey(letter));
+}
+
+export async function putHistory(letter: string, json: string): Promise<void> {
+  const blob = new Blob([json], { type: 'application/json' });
+  await (await database()).put(STORE, blob, historyKey(letter));
+}
+
+export async function deleteHistory(letter: string): Promise<void> {
+  await (await database()).delete(STORE, historyKey(letter));
+}
+
+export async function getBase(letter: string): Promise<Blob | undefined> {
+  return (await database()).get(STORE, baseKey(letter));
+}
+
+export async function putBase(letter: string, blob: Blob): Promise<void> {
+  await (await database()).put(STORE, blob, baseKey(letter));
+}
+
+export async function deleteBase(letter: string): Promise<void> {
+  await (await database()).delete(STORE, baseKey(letter));
+}
+
 export async function deletePaint(letter: string): Promise<void> {
-  await (await database()).delete(STORE, paintKey(letter));
+  const db = await database();
+  await Promise.all([
+    db.delete(STORE, paintKey(letter)),
+    db.delete(STORE, historyKey(letter)),
+    db.delete(STORE, baseKey(letter)),
+  ]);
 }
 
 export async function deleteAllPaint(): Promise<void> {

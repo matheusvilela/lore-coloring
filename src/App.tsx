@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { parseSavedHistory } from './canvas/history';
 import { CANVAS_H, CANVAS_W, Painter } from './canvas/Painter';
 import type { SizeIndex, Tool } from './canvas/tools';
 import { usePinchZoom } from './canvas/zoom';
@@ -9,9 +10,15 @@ import { LETTERS, assetUrl, type Letter } from './data/letters';
 import { DEFAULT_COLOR } from './data/palette';
 import {
   deleteAllPaint,
+  deleteBase,
+  deleteHistory,
   deletePaint,
+  getBase,
+  getHistory,
   getPaint,
   paintedLetters,
+  putBase,
+  putHistory,
   putPaint,
   requestPersistentStorage,
 } from './storage/db';
@@ -28,6 +35,24 @@ function preload(letter: string | undefined): void {
 }
 
 const AUTOSAVE_MS = 800;
+
+async function persistLetterPaint(painter: Painter, letter: Letter): Promise<void> {
+  const blob = await painter.exportPaintBlob();
+  if (!blob) {
+    await deletePaint(letter);
+    return;
+  }
+  await putPaint(letter, blob);
+  const history = painter.exportHistory();
+  if (history.length > 0) {
+    await putHistory(letter, JSON.stringify(history));
+  } else {
+    await deleteHistory(letter);
+  }
+  const baseBlob = await painter.exportBaseBlob();
+  if (baseBlob) await putBase(letter, baseBlob);
+  else await deleteBase(letter);
+}
 
 export default function App() {
   const stageRef = useRef<HTMLElement | null>(null);
@@ -66,10 +91,7 @@ export default function App() {
     }
     const painter = painterRef.current;
     if (!painter) return;
-    const blob = await painter.exportPaintBlob();
-    const key = letterRef.current;
-    if (blob) await putPaint(key, blob);
-    else await deletePaint(key);
+    await persistLetterPaint(painter, letterRef.current);
     await refreshPainted();
   }, [refreshPainted]);
 
@@ -199,16 +221,23 @@ export default function App() {
 
       const { outgoing, token } = painter.hold(letter);
       if (outgoing) {
-        const blob = await painter.exportPaintBlob();
-        if (blob) await putPaint(outgoing, blob);
-        else await deletePaint(outgoing);
+        await persistLetterPaint(painter, outgoing as Letter);
         await refreshPainted();
       }
 
       const { sessionRestored } = await painter.loadLetter(letter, token);
       if (!sessionRestored) {
-        const saved = await getPaint(letter);
-        if (saved) await painter.restorePaint(saved, token);
+        const historyBlob = await getHistory(letter);
+        const baseBlob = await getBase(letter);
+        const paintBlob = await getPaint(letter);
+
+        if (historyBlob) {
+          const saved = parseSavedHistory(await historyBlob.text());
+          if (baseBlob) await painter.restoreBase(baseBlob, token);
+          painter.restoreHistory(saved, token);
+        } else if (paintBlob) {
+          await painter.restoreBase(paintBlob, token);
+        }
       }
 
       preload(LETTERS[(index + 1) % LETTERS.length]);

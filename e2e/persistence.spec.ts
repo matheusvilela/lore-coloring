@@ -42,6 +42,89 @@ test('restaura a pintura depois de recarregar', async ({ page }, testInfo) => {
   await expect.poll(() => paintPixels(page), { timeout: 10_000 }).toBeGreaterThan(500);
 });
 
+test('desfazer volta um traço por vez depois de recarregar', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'IndexedDB compartilhado: um worker por vez');
+  await page.goto('/');
+  await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);
+
+  const sheet = page.locator('.sheet');
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  const stroke = async (yOffset: number) => {
+    await page.mouse.move(cx - box.width * 0.2, cy + yOffset);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i++) {
+      const t = i / 20;
+      await page.mouse.move(cx - box.width * 0.2 + box.width * 0.4 * t, cy + yOffset);
+    }
+    await page.mouse.up();
+  };
+
+  await stroke(-35);
+  await stroke(35);
+  const both = await paintPixels(page);
+  expect(both).toBeGreaterThan(2000);
+
+  await page.waitForTimeout(950);
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await page.waitForTimeout(50);
+
+  await page.reload();
+  await expect.poll(() => paintPixels(page), { timeout: 10_000 }).toBe(both);
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  await expect(undo).toBeEnabled();
+
+  await undo.click();
+  const afterOne = await paintPixels(page);
+  expect(afterOne).toBeGreaterThan(500);
+  expect(afterOne).toBeLessThan(both);
+  await expect(undo).toBeEnabled();
+
+  await undo.click();
+  expect(await paintPixels(page)).toBe(0);
+  await expect(undo).toBeDisabled();
+});
+
+test('PNG legado sem histórico mantém a pintura e desfazer desligado', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'IndexedDB compartilhado: um worker por vez');
+  await page.goto('/');
+  await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);
+
+  const sheet = page.locator('.sheet');
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx - 60, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 60, cy, { steps: 12 });
+  await page.mouse.up();
+  const painted = await paintPixels(page);
+  expect(painted).toBeGreaterThan(800);
+  await page.waitForTimeout(950);
+
+  await page.evaluate(() => {
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('lore-coloring', 1);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction('paint', 'readwrite');
+        tx.objectStore('paint').delete('lore:history:A');
+        tx.objectStore('paint').delete('lore:base:A');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  });
+
+  await page.reload();
+  await expect.poll(() => paintPixels(page), { timeout: 10_000 }).toBeGreaterThan(500);
+  await expect(page.getByRole('button', { name: 'Desfazer' })).toBeDisabled();
+});
+
 test('do Z a próxima ação abre a grade', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Grade de letras' }).click();

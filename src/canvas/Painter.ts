@@ -1,4 +1,5 @@
 import { assetUrl } from '../data/letters';
+import type { SavedCommand } from './history';
 import { traceStroke, type Point } from './geometry';
 import { grainPattern } from './texture';
 import { resolveSize, type SizeIndex, type Tool } from './tools';
@@ -25,9 +26,9 @@ type StrokeCommand = {
 };
 type EraseCommand = { kind: 'erase'; size: number; pts: Point[] };
 type FillCommand = { kind: 'fill'; color: string; region: number };
-/** Snapshot da camada de cor (restauração IndexedDB); entra no replay do desfazer/repintar. */
-type BitmapCommand = { kind: 'bitmap'; bitmap: ImageBitmap };
-type Command = StrokeCommand | EraseCommand | FillCommand | BitmapCommand;
+type Command = StrokeCommand | EraseCommand | FillCommand;
+
+type LetterSession = { commands: Command[]; base: ImageBitmap | null };
 
 type Box = { x0: number; y0: number; x1: number; y1: number };
 
@@ -61,6 +62,8 @@ export class Painter {
   private readonly events: PainterEvents;
 
   private commands: Command[] = [];
+  /** Pintura legada (PNG sem histórico); não entra na pilha do desfazer. */
+  private baseBitmap: ImageBitmap | null = null;
   private current: StrokeCommand | EraseCommand | null = null;
 
   private tool: Tool;
@@ -87,7 +90,7 @@ export class Painter {
   private destroyed = false;
 
   /** Pilhas de desfazer por letra nesta visita (troca A→B→A). */
-  private readonly sessions = new Map<string, Command[]>();
+  private readonly sessions = new Map<string, LetterSession>();
   /** Letra cuja arte já terminou de carregar na tela. */
   private settledLetter: string | null = null;
 
@@ -133,8 +136,9 @@ export class Painter {
     this.commitInProgressGesture();
     const outgoing = this.settledLetter;
     if (outgoing !== null) {
-      this.sessions.set(outgoing, this.commands);
+      this.sessions.set(outgoing, { commands: this.commands, base: this.baseBitmap });
       this.commands = [];
+      this.baseBitmap = null;
     }
     this.settledLetter = null;
     const token = ++this.loadToken;
@@ -145,9 +149,7 @@ export class Painter {
   discardSession(letter: string): void {
     const parked = this.sessions.get(letter);
     if (!parked) return;
-    for (const cmd of parked) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    parked.base?.close();
     this.sessions.delete(letter);
   }
 
@@ -170,7 +172,9 @@ export class Painter {
 
     const sessionRestored = this.sessions.has(letter);
     if (sessionRestored) {
-      this.commands = this.sessions.get(letter)!;
+      const snap = this.sessions.get(letter)!;
+      this.commands = snap.commands;
+      this.baseBitmap = snap.base;
       this.sessions.delete(letter);
       this.current = null;
       if (this.frame) {
@@ -190,8 +194,7 @@ export class Painter {
 
   undo(): boolean {
     if (this.commands.length === 0) return false;
-    const removed = this.commands.pop();
-    if (removed?.kind === 'bitmap') removed.bitmap.close();
+    this.commands.pop();
     this.repaint();
     this.emitHistory();
     this.emitPaintDirty();
@@ -237,29 +240,55 @@ export class Painter {
     return paintLayerHasPixels(this.pctx, CANVAS_W, CANVAS_H);
   }
 
-  /** Restaura a camada de cor a partir de um PNG salvo (um passo de desfazer). */
-  async restorePaint(blob: Blob, token: number): Promise<void> {
+  /** Restaura pintura legada (PNG sem histórico); desfazer fica desligado. */
+  async restoreBase(blob: Blob, token: number): Promise<void> {
     if (this.destroyed || token !== this.loadToken) return;
 
-    for (const cmd of this.commands) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    this.closeBase();
     this.commands = [];
     this.current = null;
     if (this.frame) {
       cancelAnimationFrame(this.frame);
       this.frame = 0;
     }
-    this.pctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     const bitmap = await createImageBitmap(blob);
     if (this.destroyed || token !== this.loadToken) {
       bitmap.close();
       return;
     }
-    this.commands = [{ kind: 'bitmap', bitmap }];
-    this.pctx.drawImage(bitmap, 0, 0, CANVAS_W, CANVAS_H);
+    this.baseBitmap = bitmap;
+    this.repaint();
     this.emitHistory();
+  }
+
+  restoreHistory(saved: SavedCommand[], token: number): void {
+    if (this.destroyed || token !== this.loadToken) return;
+    this.commands = saved.map((cmd) => {
+      if (cmd.kind === 'fill') return { kind: 'fill', color: cmd.color, region: cmd.region };
+      return { ...cmd, pts: cmd.pts.map((p) => ({ ...p })) };
+    }) as Command[];
+    this.current = null;
+    if (this.frame) {
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+    }
+    this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    this.repaint();
+    this.emitHistory();
+  }
+
+  exportHistory(): SavedCommand[] {
+    return this.commands.map((cmd) => {
+      if (cmd.kind === 'fill') {
+        return { kind: 'fill', color: cmd.color, region: cmd.region };
+      }
+      return { ...cmd, pts: cmd.pts.map((p) => ({ ...p })) };
+    });
+  }
+
+  hasPersistedBase(): boolean {
+    return this.baseBitmap !== null;
   }
 
   /** Exporta a camada de cor como PNG, ou `null` se estiver vazia. */
@@ -269,13 +298,23 @@ export class Painter {
     return fetch(dataUrl).then((response) => response.blob());
   }
 
+  exportBaseBlob(): Promise<Blob | null> {
+    if (!this.baseBitmap) return Promise.resolve(null);
+    const canvas = document.createElement('canvas');
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return Promise.resolve(null);
+    ctx.drawImage(this.baseBitmap, 0, 0, CANVAS_W, CANVAS_H);
+    const dataUrl = canvas.toDataURL('image/png');
+    return fetch(dataUrl).then((response) => response.blob());
+  }
+
   destroy(): void {
     this.destroyed = true;
     if (this.frame) cancelAnimationFrame(this.frame);
     this.discardAllSessions();
-    for (const cmd of this.commands) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    this.closeBase();
     this.sheet.removeEventListener('pointerdown', this.onPointerDown);
     this.sheet.removeEventListener('pointermove', this.onPointerMove);
     this.sheet.removeEventListener('pointerup', this.onPointerUp);
@@ -525,19 +564,22 @@ export class Painter {
   private paintCommand(ctx: CanvasRenderingContext2D, cmd: Command): void {
     if (cmd.kind === 'stroke') this.drawStroke(ctx, cmd);
     else if (cmd.kind === 'erase') this.drawErase(ctx, cmd);
-    else if (cmd.kind === 'bitmap') ctx.drawImage(cmd.bitmap, 0, 0, CANVAS_W, CANVAS_H);
     else this.applyFill(ctx, cmd);
   }
 
   private repaint(): void {
     this.pctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (this.baseBitmap) this.pctx.drawImage(this.baseBitmap, 0, 0, CANVAS_W, CANVAS_H);
     for (const cmd of this.commands) this.paintCommand(this.pctx, cmd);
   }
 
+  private closeBase(): void {
+    this.baseBitmap?.close();
+    this.baseBitmap = null;
+  }
+
   private reset(): void {
-    for (const cmd of this.commands) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    this.closeBase();
     this.commands = [];
     this.current = null;
     if (this.frame) {
