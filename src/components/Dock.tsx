@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react';
 import {
   TOOLS,
   dockSizeDotPx,
+  popoverThumbHeight,
   resolveSize,
   toolUsesSize,
   type Tool,
@@ -59,6 +60,7 @@ export function Dock({
   const popoverId = useId();
   const previewTool = stillUsesSize ? tool : 'brush';
   const dotPx = dockSizeDotPx(sizeT, previewTool);
+  const thumbHeightPx = popoverThumbHeight(previewTool, sizeT);
 
   useLayoutEffect(() => {
     const controls = controlsRef.current;
@@ -153,7 +155,7 @@ export function Dock({
                 >
                   <div className="size-popover__wedge">
                     <svg className="size-popover__track" viewBox="0 0 200 40" aria-hidden="true">
-                      <polygon points="8,36 192,6 192,36" fill="currentColor" opacity="0.14" />
+                      <polygon points="4,36 192,6 192,36" fill="currentColor" opacity="0.14" />
                     </svg>
                     <input
                       type="range"
@@ -169,10 +171,9 @@ export function Dock({
                       onChange={(event) => onSizeT(Number(event.target.value) / 100)}
                     />
                     <span
-                      className="size-popover__preview"
+                      className="size-popover__thumb"
                       style={{
-                        width: 8 + sizeT * 18,
-                        height: 8 + sizeT * 18,
+                        height: thumbHeightPx,
                         left: `${sizeT * 100}%`,
                       }}
                       aria-hidden="true"
@@ -317,10 +318,10 @@ function ToolIcon({ tool }: { tool: Tool }) {
         strokeLinejoin="round"
         aria-hidden="true"
       >
-        <path d="M8 11V6.5a1.5 1.5 0 0 1 3 0V11" />
-        <path d="M11 10.5V5.5a1.5 1.5 0 0 1 3 0V11" />
-        <path d="M14 11V7.5a1.5 1.5 0 0 1 3 0V13" />
-        <path d="M8 11.5c0-1.2-.9-2-2-1.6-.8.3-1.2 1.1-1 1.9l1.2 4.2A4 4 0 0 0 10 19.5h4.2a3.5 3.5 0 0 0 3.3-2.3l.8-2.2" />
+        <path d="M18 11V6a2 2 0 0 0-4 0v5" />
+        <path d="M14 10V4a2 2 0 0 0-4 0v10" />
+        <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
+        <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.87 3.87a1 1 0 0 1-1.41-1.41l9.2-9.2A4 4 0 0 1 18 8z" />
       </svg>
     );
   }

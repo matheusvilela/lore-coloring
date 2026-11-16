@@ -1,17 +1,19 @@
 export const TOOLS = ['brush', 'crayon', 'bucket', 'eraser', 'move'] as const;
 export type Tool = (typeof TOOLS)[number];
 
-/** Traço médio do pincel (equivalente ao antigo “médio”). */
-export const DEFAULT_SIZE_T = 0.4;
+/** Traço médio do pincel (≈58 px com os mínimos atuais). */
+export const DEFAULT_SIZE_T = 0.51;
 
 /** Espessura mínima e máxima em píxeis do canvas lógico (2048 × 1562). Ver D7. */
 const SIZE_RANGE: Record<Tool, readonly [number, number] | null> = {
-  brush: [30, 100],
-  crayon: [36, 116],
-  eraser: [80, 240],
+  brush: [14, 100],
+  crayon: [18, 116],
+  eraser: [40, 240],
   bucket: null,
   move: null,
 };
+
+const POPOVER_THUMB_H = [6, 36] as const;
 
 export function resolveSize(tool: Tool, sizeT: number): number {
   const range = SIZE_RANGE[tool];
@@ -20,10 +22,21 @@ export function resolveSize(tool: Tool, sizeT: number): number {
   return Math.round(range[0] + t * (range[1] - range[0]));
 }
 
+/** Altura da linha vertical no popover de tamanho (6–36 px). */
+export function popoverThumbHeight(tool: Tool, sizeT: number): number {
+  const range = SIZE_RANGE[tool];
+  if (!range) return POPOVER_THUMB_H[0];
+  const px = resolveSize(tool, sizeT);
+  const span = range[1] - range[0];
+  if (span <= 0) return POPOVER_THUMB_H[0];
+  const t = (px - range[0]) / span;
+  return Math.round(POPOVER_THUMB_H[0] + t * (POPOVER_THUMB_H[1] - POPOVER_THUMB_H[0]));
+}
+
 /** Diâmetro do ponto no botão do dock (não é o tamanho do traço no canvas). */
 export function dockSizeDotPx(sizeT: number, _tool: Tool): number {
   const t = clamp01(sizeT);
-  const minDot = 8;
+  const minDot = 5;
   const maxDot = 18;
   return Math.round(minDot + t * (maxDot - minDot));
 }
