@@ -56,6 +56,47 @@ test('no desktop largo: ações e pintura compartilham uma faixa com divisor', a
   await expect(sep).toBeVisible();
 });
 
+/** Centro horizontal do bloco vs centro da faixa (tolerância em px). */
+async function expectGroupCentered(
+  page: import('@playwright/test').Page,
+  groupSelector: string,
+  stripSelector: string,
+  tolerance = 28,
+) {
+  const group = page.locator(groupSelector).first();
+  const strip = page.locator(stripSelector).first();
+  await expect(group).toBeVisible();
+  await expect(strip).toBeVisible();
+  const boxes = await page.evaluate(
+    ({ groupSel, stripSel }) => {
+      const groupEl = document.querySelector(groupSel)!;
+      const stripEl = document.querySelector(stripSel)!;
+      const g = groupEl.getBoundingClientRect();
+      const s = stripEl.getBoundingClientRect();
+      return { groupMid: g.left + g.width / 2, stripMid: s.left + s.width / 2 };
+    },
+    { groupSel: groupSelector, stripSel: stripSelector },
+  );
+  expect(Math.abs(boxes.groupMid - boxes.stripMid)).toBeLessThanOrEqual(tolerance);
+}
+
+test('em resoluções estreitas as duas faixas do dock ficam centralizadas', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  await expectGroupCentered(page, '.dock__block--actions', '.dock__tools');
+  await expectGroupCentered(page, '.dock__block--paint', '.dock__tools');
+  await expectGroupCentered(page, '.palette', '.dock__colors');
+});
+
+test('em desktop baixo as faixas do dock ficam centralizadas', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 520 });
+  await page.goto('/');
+
+  await expectGroupCentered(page, '.dock__controls', '.dock__tools', 48);
+  await expectGroupCentered(page, '.palette', '.dock__colors', 48);
+});
+
 test('no desktop baixo: controles numa fita horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 520 });
   await page.goto('/');

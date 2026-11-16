@@ -229,11 +229,15 @@ body {
 .dock__tools {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .dock__colors {
-  display: block;
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .dock__controls {
@@ -427,7 +431,9 @@ body {
 
   .dock__controls {
     flex-direction: column;
+    align-items: center;
     gap: 6px;
+    width: 100%;
   }
 
   .dock__sep {
@@ -436,7 +442,8 @@ body {
 
   .dock__block--actions,
   .dock__block--paint {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     justify-content: center;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -728,10 +735,13 @@ body {
   /* a altura é o recurso escasso: a paleta vira uma fita horizontal */
   .palette {
     display: flex;
-    max-width: none;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
     gap: 8px;
     overflow-x: auto;
     overflow-y: hidden;
+    justify-content: center;
     /* 8 px de folga para o anel da cor ativa não ser cortado */
     padding: 8px;
     scrollbar-width: none;
@@ -754,7 +764,7 @@ body {
 @media (min-width: 760px) and (max-height: 560px) {
   .dock__controls {
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: center;
     overflow-x: auto;
     overflow-y: hidden;
     width: 100%;
