@@ -7,7 +7,7 @@ export type PaletteColor = {
 
 /**
  * 24 cores em ordem de arco-íris (ver Anexo A de docs/decisoes.md).
- * 23 oficiais do Alphabet Lore, sem os brancos de X/Y/Z, mais um off-white.
+ * 23 oficiais do Alphabet Lore, sem os brancos de X/Y/Z, mais um branco.
  */
 export const PALETTE: readonly PaletteColor[] = [
   { hex: '#782D2D', name: 'vinho', from: 'R' },
@@ -33,7 +33,7 @@ export const PALETTE: readonly PaletteColor[] = [
   { hex: '#000000', name: 'preto', from: 'F' },
   { hex: '#666C73', name: 'cinza', from: 'T' },
   { hex: '#E1D2AE', name: 'areia', from: 'Q' },
-  { hex: '#F5F0E8', name: 'off-white' },
+  { hex: '#FFFFFF', name: 'branco' },
 ] as const;
 
 /** Cor inicial: o vermelho do A. */
