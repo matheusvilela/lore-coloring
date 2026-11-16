@@ -83,7 +83,7 @@ Regiões = componentes conexos do "não-tinta" (barreira: `alpha ≥ 0.5`), rotu
 
 Por que é estável: a tinta está sempre por cima e a borracha só apaga cor → **as barreiras nunca mudam**, então o mapa é válido durante toda a vida da letra.
 
-⚠️ Risco conhecido: em letras com traço "aberto" (ex.: o contorno do `C`, do `S`, do `J`), o balde vaza para a região vizinha. Isso é o comportamento real de um paint. Aceito no MVP; se incomodar, inserimos "fechos" invisíveis no SVG daquela letra.
+⚠️ **Risco original, já medido e descartado:** em letras de traço "aberto" (C, S, J) o balde vazaria para o fundo. O build provou o contrário — as 26 letras têm o corpo fechado como região própria (ver "Resultado da Etapa 1"). Único caso: no `C` o corpo é dividido em **duas** regiões pela própria linha da boca, então o balde pinta a metade de cima ou a de baixo. Comportamento aceitável.
 
 ### D6 · Ferramentas do MVP
 
@@ -181,7 +181,7 @@ lore/
 | Risco | Mitigação |
 |---|---|
 | potrace perder detalhes finos (dentes, cílios, óculos) | QA visual obrigatório; fallback vtracer; ajuste de `--alphamax`/`--opttolerance`; speckle filter |
-| Balde vazando em contornos abertos (C, S, J) | Aceito no MVP; opção de inserir fechos invisíveis no SVG |
+| ~~Balde vazando em contornos abertos~~ | **Descartado na Etapa 1:** 0 de 26 letras vazam (ver Resultado da Etapa 1) |
 | Despejo do IndexedDB pelo Safari/iOS | `persist()` + orientar a instalar como PWA (instalados são despejados com menos frequência); risco aceito no MVP |
 | Costura clara entre fill e traço | Fill dilatado 1–2 px para dentro da zona de antialias; tinta desenhada por cima |
 | Performance em celular antigo | Resolução de pintura fixa, tinta não redesenhada, zero re-render React durante o traço |
@@ -260,6 +260,20 @@ Entregas: `scripts/build-assets.mjs`, `public/letras/{A..Z}/{ink.svg, ink.png, r
 - peso total de `public/letras/` (se passar de ~5 MB, trocar `ink.png` por WebP lossless ou baixar para 1536 px);
 - nº de letras com contorno aberto (quantos "fechos invisíveis" o balde vai precisar);
 - nº de paths por letra (termômetro de over/under-tracing).
+
+### Resultado da Etapa 1 (medido em 15/11/2026)
+
+| Métrica | Valor |
+|---|---|
+| bbox compartilhado | 309 × 231 (fonte), pad 6 px |
+| fator de ampliação | **6,63×** → tinta renderizada em 2048 × 1531 |
+| peso de `public/letras/` | **2,30 MB** (26 letras, 4 arquivos cada) — bem abaixo do limite de 5 MB |
+| paths por letra | 1 a 9 (mediana 2) |
+| regiões por letra | 6 a 22 |
+| letras com corpo sem região própria | **nenhuma** — 0/26 vazam para o fundo |
+| alinhamento `ink.png` × `region.png` | desvio máximo 3 px (em 2048), sob um traço de ~10 px |
+
+Conclusão: o potrace preservou dentes, cílios, antenas, hastes dos óculos e manchas em todas as letras; o balde é viável sem gambiarra; o peso permite precache completo na PWA.
 
 ### Etapa 2 · Esqueleto do app (1 dia)
 

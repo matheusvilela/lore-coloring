@@ -1,0 +1,15 @@
+{
+  "name": "lore-coloring",
+  "version": "1.0.0",
+  "description": "App de colorir com as letras do Alphabet Lore",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build:assets": "node scripts/build-assets.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
+  },
+  "private": true
+}
