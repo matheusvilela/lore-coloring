@@ -483,6 +483,15 @@ body {
   pointer-events: none;
 }
 
+/* a tinta fica por baixo para a letra continuar legível com fundo cheio */
+.letter-cell__paint {
+  z-index: 0;
+}
+
+.letter-cell__thumb {
+  z-index: 1;
+}
+
 /* ---------- celulares estreitos: controles um pouco menores ---------- */
 
 @media (max-width: 480px) {

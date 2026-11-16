@@ -147,6 +147,61 @@ test('com o balde, a pinça não preenche nada', async ({ page, context }, testI
   expect(await paintPixels(page)).toBe(0);
 });
 
+test('após voltar numa letra salva, a pinça não apaga a pintura', async ({ page }) => {
+  await ready(page);
+
+  const sheet = page.locator('.sheet');
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 20; i++) {
+    const t = i / 20;
+    await page.mouse.move(cx - box.width * 0.15 + box.width * 0.3 * t, cy + Math.sin(t * Math.PI * 4) * 40);
+  }
+  await page.mouse.up();
+
+  const painted = await paintPixels(page);
+  expect(painted).toBeGreaterThan(800);
+  await page.waitForTimeout(900);
+
+  await page.getByRole('button', { name: 'Próxima letra' }).click();
+  await expect(page.locator('.letter-status')).toHaveText('B');
+  await page.getByRole('button', { name: 'Letra anterior' }).click();
+  await expect(page.locator('.letter-status')).toHaveText('A');
+  await expect.poll(() => paintPixels(page), { timeout: 10_000 }).toBeGreaterThan(800);
+
+  // primeiro dedo na tinta (como no uso real); pinça cancela o traço sem zombar do replay
+  await page.evaluate(
+    ({ cx, cy }) => {
+      const ink = document.querySelector('.layer--ink')!;
+      const fire = (type: string, id: number, x: number, y: number, target: EventTarget) =>
+        target.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId: id,
+            pointerType: 'touch',
+            isPrimary: id === 21,
+            clientX: x,
+            clientY: y,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+
+      fire('pointerdown', 21, cx, cy, ink);
+      fire('pointerdown', 22, cx + 80, cy, ink);
+      fire('pointermove', 21, cx - 60, cy, window);
+      fire('pointermove', 22, cx + 120, cy, window);
+      fire('pointerup', 21, cx - 60, cy, window);
+      fire('pointerup', 22, cx + 120, cy, window);
+    },
+    { cx, cy },
+  );
+
+  expect(await paintPixels(page)).toBeGreaterThan(800);
+});
+
 test('a tecla 0 volta ao encaixe e trocar de letra zera o zoom', async ({ page }) => {
   await ready(page);
   await pinch(page, 120, 380);

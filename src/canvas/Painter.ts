@@ -25,7 +25,9 @@ type StrokeCommand = {
 };
 type EraseCommand = { kind: 'erase'; size: number; pts: Point[] };
 type FillCommand = { kind: 'fill'; color: string; region: number };
-type Command = StrokeCommand | EraseCommand | FillCommand;
+/** Snapshot da camada de cor (restauração IndexedDB); entra no replay do desfazer/repintar. */
+type BitmapCommand = { kind: 'bitmap'; bitmap: ImageBitmap };
+type Command = StrokeCommand | EraseCommand | FillCommand | BitmapCommand;
 
 type Box = { x0: number; y0: number; x1: number; y1: number };
 
@@ -136,7 +138,8 @@ export class Painter {
 
   undo(): boolean {
     if (this.commands.length === 0) return false;
-    this.commands.pop();
+    const removed = this.commands.pop();
+    if (removed?.kind === 'bitmap') removed.bitmap.close();
     this.repaint();
     this.emitHistory();
     this.emitPaintDirty();
@@ -158,6 +161,7 @@ export class Painter {
     const id = this.activePointer;
     if (id === null) return;
 
+    const inProgress = this.current;
     this.activePointer = null;
     this.current = null;
     this.pendingFill = null;
@@ -166,8 +170,8 @@ export class Painter {
       cancelAnimationFrame(this.frame);
       this.frame = 0;
     }
-    // a borracha desenha direto na camada de pintura: refazer apaga o preview
-    this.repaint();
+    // borracha em andamento altera a camada de cor direto; traço só vive na wet
+    if (inProgress?.kind === 'erase') this.repaint();
     this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
   }
 
@@ -183,6 +187,9 @@ export class Painter {
 
   /** Restaura a camada de cor a partir de um PNG salvo (histórico da sessão zera). */
   async restorePaint(blob: Blob): Promise<void> {
+    for (const cmd of this.commands) {
+      if (cmd.kind === 'bitmap') cmd.bitmap.close();
+    }
     this.commands = [];
     this.current = null;
     if (this.frame) {
@@ -192,11 +199,8 @@ export class Painter {
     this.pctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     const bitmap = await createImageBitmap(blob);
-    try {
-      this.pctx.drawImage(bitmap, 0, 0, CANVAS_W, CANVAS_H);
-    } finally {
-      bitmap.close();
-    }
+    this.commands = [{ kind: 'bitmap', bitmap }];
+    this.pctx.drawImage(bitmap, 0, 0, CANVAS_W, CANVAS_H);
     this.emitHistory();
   }
 
@@ -457,6 +461,7 @@ export class Painter {
   private paintCommand(ctx: CanvasRenderingContext2D, cmd: Command): void {
     if (cmd.kind === 'stroke') this.drawStroke(ctx, cmd);
     else if (cmd.kind === 'erase') this.drawErase(ctx, cmd);
+    else if (cmd.kind === 'bitmap') ctx.drawImage(cmd.bitmap, 0, 0, CANVAS_W, CANVAS_H);
     else this.applyFill(ctx, cmd);
   }
 
@@ -466,6 +471,9 @@ export class Painter {
   }
 
   private reset(): void {
+    for (const cmd of this.commands) {
+      if (cmd.kind === 'bitmap') cmd.bitmap.close();
+    }
     this.commands = [];
     this.current = null;
     if (this.frame) {

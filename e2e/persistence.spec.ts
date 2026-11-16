@@ -50,6 +50,36 @@ test('do Z a próxima ação abre a grade', async ({ page }) => {
   await expect(page.locator('.sheet')).toBeVisible();
 });
 
+test('na grade o contorno da letra fica acima da pintura', async ({ page }) => {
+  await page.goto('/');
+  await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);
+
+  const sheet = page.locator('.sheet');
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.getByRole('button', { name: 'Balde de tinta' }).click();
+  await page.getByRole('button', { name: 'Cor amarelo', exact: true }).click();
+  await page.mouse.click(cx, cy);
+
+  await page.waitForTimeout(900);
+  await page.getByRole('button', { name: 'Grade de letras' }).click();
+  await expect(page.getByRole('region', { name: 'Grade de letras' })).toBeVisible();
+
+  const cell = page.locator('.letter-cell').first();
+  await expect(cell.locator('.letter-cell__paint')).toBeVisible();
+
+  const layers = await cell.evaluate(() => {
+    const thumb = document.querySelector('.letter-cell__thumb')!;
+    const paint = document.querySelector('.letter-cell__paint')!;
+    return {
+      thumbZ: getComputedStyle(thumb).zIndex,
+      paintZ: getComputedStyle(paint).zIndex,
+    };
+  });
+  expect(Number(layers.thumbZ)).toBeGreaterThan(Number(layers.paintZ));
+});
+
 test('a tinta volta ao escolher letra na grade', async ({ page }) => {
   await page.goto('/');
   await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);
