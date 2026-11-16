@@ -192,6 +192,49 @@ export default function App() {
     };
   }, []);
 
+  // No celular as setas ficam sempre na marca logo acima da paleta, sem colar na folha.
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    const pager = pagerRef.current;
+    const colors = appRef.current?.querySelector<HTMLElement>('.dock__colors');
+    if (!stage || !pager || !colors) return;
+
+    const place = () => {
+      const gap = parseFloat(getComputedStyle(stage).getPropertyValue('--pager-palette-gap'));
+      if (!Number.isFinite(gap)) {
+        pager.style.removeProperty('top');
+        return;
+      }
+
+      const shiftNow = parseFloat(pager.style.top) || 0;
+      const naturalTop = pager.getBoundingClientRect().top - shiftNow;
+      let desiredTop = colors.getBoundingClientRect().top - gap - pager.offsetHeight;
+      const tools = appRef.current?.querySelector<HTMLElement>('.dock__tools');
+      if (tools) {
+        const minTop = tools.getBoundingClientRect().bottom + gap;
+        if (desiredTop < minTop) desiredTop = minTop;
+      }
+      const shift = Math.round(desiredTop - naturalTop);
+      pager.style.top = `${shift}px`;
+    };
+
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(stage);
+    observer.observe(colors);
+    const sheetWrap = stage.querySelector<HTMLElement>('.sheet-wrap');
+    if (sheetWrap) observer.observe(sheetWrap);
+    window.addEventListener('resize', place);
+    const mq = window.matchMedia('(max-width: 759px)');
+    mq.addEventListener('change', place);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', place);
+      mq.removeEventListener('change', place);
+      pager.style.removeProperty('top');
+    };
+  }, []);
+
   useLayoutEffect(() => {
     const stage = stageRef.current;
     const pager = pagerRef.current;

@@ -1,5 +1,54 @@
 import { expect, test } from '@playwright/test';
 
+test('no celular: setas sentam logo acima da paleta em qualquer altura', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const expectOnMarks = async () => {
+    await expect.poll(async () => {
+      const prev = await page.getByRole('button', { name: 'Letra anterior' }).boundingBox();
+      const next = await page.getByRole('button', { name: 'Próxima letra' }).boundingBox();
+      const palette = await page.locator('.dock__colors').boundingBox();
+      const tools = await page.locator('.dock__tools').boundingBox();
+      const sheet = await page.locator('.sheet').boundingBox();
+      if (!prev || !next || !palette || !tools || !sheet || sheet.height < 100) return null;
+      const left = palette.y - (prev.y + prev.height);
+      const right = palette.y - (next.y + next.height);
+      const onMark = (gap: number) => gap >= 14 && gap <= 18;
+      const belowTools = prev.y >= tools.y + tools.height - 1;
+      return onMark(left) && onMark(right) && Math.abs(prev.y - next.y) < 1 && belowTools;
+    }).toBe(true);
+  };
+
+  await expectOnMarks();
+  await page.setViewportSize({ width: 390, height: 1100 });
+  await expectOnMarks();
+  await page.setViewportSize({ width: 559, height: 1237 });
+  await expectOnMarks();
+  await page.setViewportSize({ width: 700, height: 400 });
+  await expectOnMarks();
+});
+
+test('no desktop largo: setas ficam nas laterais, não acima da paleta', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+
+  const prev = page.getByRole('button', { name: 'Letra anterior' });
+  const palette = page.locator('.dock__colors');
+  const stage = page.locator('.stage');
+  const prevBox = await prev.boundingBox();
+  const paletteBox = await palette.boundingBox();
+  const stageBox = await stage.boundingBox();
+  expect(prevBox).not.toBeNull();
+  expect(paletteBox).not.toBeNull();
+  expect(stageBox).not.toBeNull();
+  const gap = paletteBox!.y - (prevBox!.y + prevBox!.height);
+  expect(gap).toBeGreaterThan(80);
+  const center = prevBox!.y + prevBox!.height / 2;
+  const stageCenter = stageBox!.y + stageBox!.height / 2;
+  expect(Math.abs(center - stageCenter)).toBeLessThan(40);
+});
+
 test('no celular: ferramentas em cima, folha no meio, cores embaixo', async ({ page }) => {
   await page.setViewportSize({ width: 448, height: 997 });
   await page.goto('/');
