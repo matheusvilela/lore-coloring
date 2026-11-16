@@ -88,10 +88,10 @@ body {
 }
 
 .zoom-pill {
-  position: absolute;
-  top: 10px;
-  right: var(--gutter);
-  z-index: 3;
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 5;
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 14px;
@@ -386,6 +386,11 @@ body {
 
   .dock__row--meta {
     gap: 8px;
+  }
+
+  /* abaixo da faixa de ferramentas, ainda no canto do board */
+  .zoom-pill {
+    top: calc(max(6px, env(safe-area-inset-top)) + 7.75rem);
   }
 }
 
