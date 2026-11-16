@@ -459,8 +459,28 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 10px;
+  align-content: start;
   overflow: auto;
   flex: 1;
+  min-height: 0;
+}
+
+/* 26 letras em 13×2, sem esticar células no espaço que sobra */
+@media (min-width: 760px) {
+  .letter-grid {
+    --grid-cell: min(8.2vw, 108px);
+    grid-template-columns: repeat(13, var(--grid-cell));
+    justify-content: center;
+    gap: 12px 14px;
+    padding: 12px 24px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .grid-screen__bar {
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 12px 24px;
+  }
 }
 
 .letter-cell-wrap {
