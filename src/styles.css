@@ -217,6 +217,8 @@ body {
 }
 
 /* ---------- setas entre as letras ---------- */
+/* no celular o pager continua no fluxo (reserva o vão sob a folha) e o JS
+   desloca as setas com `top` até --pager-palette-gap acima da paleta */
 
 .pager {
   position: relative;
@@ -506,6 +508,8 @@ body {
     flex: none;
     padding-top: max(8px, env(safe-area-inset-top));
     padding-bottom: max(8px, env(safe-area-inset-bottom));
+    /* folga entre a base da seta e o topo da paleta; o JS usa isto para descer o pager */
+    --pager-palette-gap: 16px;
   }
 
   .dock {
