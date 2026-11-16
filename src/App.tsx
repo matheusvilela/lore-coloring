@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { parseSavedHistory } from './canvas/history';
 import { CANVAS_H, CANVAS_W, Painter, type HistoryState } from './canvas/Painter';
 import type { SizeIndex, Tool } from './canvas/tools';
 import { usePinchZoom } from './canvas/zoom';
@@ -8,11 +9,13 @@ import { LetterGrid } from './components/LetterGrid';
 import { LETTERS, assetUrl, type Letter } from './data/letters';
 import { DEFAULT_COLOR } from './data/palette';
 import {
+  getBase,
+  getHistory,
   getPaint,
   paintedLetters,
   queueDeleteAllPaint,
+  queueLetterPersist,
   queuePaintDelete,
-  queuePaintWrite,
   requestPersistentStorage,
 } from './storage/db';
 
@@ -28,6 +31,15 @@ function preload(letter: string | undefined): void {
 }
 
 const AUTOSAVE_MS = 800;
+
+function queuePersistLetter(painter: Painter, letter: Letter): Promise<void> {
+  const history = painter.exportHistory();
+  const historyJson = history.length > 0 ? JSON.stringify(history) : null;
+  const snapshotPromise = Promise.all([painter.exportPaintBlob(), painter.exportBaseBlob()]).then(
+    ([paint, base]) => ({ paint, historyJson, base }),
+  );
+  return queueLetterPersist(letter, snapshotPromise);
+}
 
 export default function App() {
   const stageRef = useRef<HTMLElement | null>(null);
@@ -80,8 +92,7 @@ export default function App() {
     const painter = painterRef.current;
     if (!painter) return;
     const key = canvasLetterRef.current;
-    const blobPromise = painter.exportPaintBlob();
-    await queuePaintWrite(key, blobPromise);
+    await queuePersistLetter(painter, key);
     await refreshPainted();
   }, [cancelSaveTimer, refreshPainted]);
 
@@ -210,8 +221,7 @@ export default function App() {
 
       const { outgoing, token } = painter.hold(letter);
       if (outgoing) {
-        const blobPromise = painter.exportPaintBlob();
-        await queuePaintWrite(outgoing, blobPromise);
+        await queuePersistLetter(painter, outgoing as Letter);
         await refreshPainted();
       }
 
@@ -220,8 +230,18 @@ export default function App() {
 
       canvasLetterRef.current = letter;
       if (!sessionRestored) {
-        const saved = await getPaint(letter);
-        if (saved) await painter.restorePaint(saved, token);
+        const historyBlob = await getHistory(letter);
+        const baseBlob = await getBase(letter);
+        const paintBlob = await getPaint(letter);
+
+        if (historyBlob) {
+          const saved = parseSavedHistory(await historyBlob.text());
+          if (baseBlob) await painter.restoreBase(baseBlob, token);
+          if (gen !== loadGenRef.current || painter.getSettledLetter() !== letter) return;
+          painter.restoreHistory(saved, token);
+        } else if (paintBlob) {
+          await painter.restoreBase(paintBlob, token);
+        }
       }
 
       preload(LETTERS[(index + 1) % LETTERS.length]);
