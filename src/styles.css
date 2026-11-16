@@ -580,9 +580,13 @@ body {
 }
 
 /* desktop largo: 12 ferramentas na mesma coluna que as 12 cores.
-   O vão entre botões acompanha o vão atual do divisor (10 + 1 + 10),
-   para o fio não ficar mais estreito que os outros intervalos. */
+   O vão entre botões — e entre as fileiras — acompanha o vão atual do
+   divisor (10 + 1 + 10), para o fio não ficar mais estreito que os outros. */
 @media (min-width: 760px) and (min-height: 561px) {
+  .dock.is-inline {
+    gap: var(--dock-align-gap);
+  }
+
   .dock.is-inline .dock__block--paint,
   .dock.is-inline .tools,
   .dock.is-inline .dock__actions {
@@ -596,8 +600,7 @@ body {
 
   .dock.is-inline .palette {
     grid-template-columns: repeat(12, var(--dock-align-tool));
-    column-gap: var(--dock-align-gap);
-    row-gap: 8px;
+    gap: var(--dock-align-gap);
     width: max-content;
     max-width: none;
     margin-inline: auto;

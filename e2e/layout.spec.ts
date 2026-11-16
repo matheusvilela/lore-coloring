@@ -142,7 +142,11 @@ test('no desktop largo: cores alinham com as ferramentas', async ({ page }) => {
 
   const buttonGap = crayonBox!.x - (brushBox!.x + brushBox!.width);
   const separatorGap = gridBox!.x - (sizeBox!.x + sizeBox!.width);
+  const toolToColorGap = firstBox!.y - (brushBox!.y + brushBox!.height);
+  const colorRowGap = secondBox!.y - (firstBox!.y + firstBox!.height);
   expect(buttonGap).toBeCloseTo(separatorGap, 0);
+  expect(toolToColorGap).toBeCloseTo(buttonGap, 0);
+  expect(colorRowGap).toBeCloseTo(buttonGap, 0);
   expect(separatorGap).toBeGreaterThan(16);
 });
 
