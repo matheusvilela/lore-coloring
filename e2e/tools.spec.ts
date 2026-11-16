@@ -26,6 +26,18 @@ async function ready(page: Page) {
   await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
 }
 
+async function setStrokeSizeT(page: Page, t: number) {
+  const btn = page.getByRole('button', { name: 'Tamanho do traço' });
+  await btn.click();
+  await page.locator('.size-popover__range').evaluate((el, value) => {
+    const input = el as HTMLInputElement;
+    input.value = String(value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, Math.round(t * 100));
+  await btn.click();
+}
+
 async function sheetBox(page: Page) {
   const box = (await page.locator('.sheet').boundingBox())!;
   return { box, at: (fx: number, fy: number) => [box.x + box.width * fx, box.y + box.height * fy] as const };
@@ -262,10 +274,7 @@ test('a paleta tem as 24 cores e marca a escolhida', async ({ page }) => {
   );
 
   // as ferramentas e os tamanhos existem e são acessíveis por nome
-  for (const name of ['Pincel', 'Giz de cera', 'Borracha', 'Balde de tinta']) {
-    await expect(page.getByRole('button', { name })).toBeVisible();
-  }
-  for (const name of ['Tamanho pequeno', 'Tamanho médio', 'Tamanho grande']) {
+  for (const name of ['Pincel', 'Giz de cera', 'Borracha', 'Balde de tinta', 'Mover', 'Tamanho do traço']) {
     await expect(page.getByRole('button', { name })).toBeVisible();
   }
 });
@@ -313,7 +322,7 @@ test('a borracha apaga a pintura e nunca a linha preta', async ({ page }) => {
   expect(painted).toBeGreaterThan(1000);
 
   await page.getByRole('button', { name: 'Borracha' }).click();
-  await page.getByRole('button', { name: 'Tamanho grande' }).click();
+  await setStrokeSizeT(page, 1);
   await stroke(page, at(0.2, 0.35), at(0.8, 0.35));
 
   const after = await paintPixels(page);

@@ -20,6 +20,14 @@ type Gesture = {
   anchorY: number;
 };
 
+type PanGesture = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  viewX: number;
+  viewY: number;
+};
+
 /**
  * Pinça para ampliar a folha (D15).
  *
@@ -44,6 +52,7 @@ export function usePinchZoom(
   const base = useRef<Base>({ left: 0, top: 0, width: 0, height: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
+  const pan = useRef<PanGesture | null>(null);
 
   const secondPointer = useRef(onSecondPointer);
   secondPointer.current = onSecondPointer;
@@ -73,9 +82,27 @@ export function usePinchZoom(
   const reset = useCallback(() => {
     view.current = { scale: 1, x: 0, y: 0 };
     gesture.current = null;
+    pan.current = null;
     pointers.current.clear();
+    stageRef.current?.classList.remove('is-panning');
     apply();
-  }, [apply]);
+  }, [apply, stageRef]);
+
+  const isMoveTool = useCallback((): boolean => {
+    return sheetRef.current?.dataset.tool === 'move';
+  }, [sheetRef]);
+
+  const endPan = useCallback(
+    (pointerId: number): void => {
+      if (pan.current?.pointerId !== pointerId) return;
+      pan.current = null;
+      stageRef.current?.classList.remove('is-panning');
+      if (stageRef.current?.hasPointerCapture(pointerId)) {
+        stageRef.current.releasePointerCapture(pointerId);
+      }
+    },
+    [stageRef],
+  );
 
   /** Lê a geometria da folha descontando a transformação que já está nela. */
   const readBase = useCallback((): boolean => {
@@ -184,10 +211,43 @@ export function usePinchZoom(
       if (event.pointerType === 'mouse' && event.button !== 0) return;
 
       pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (isMoveTool()) {
+        if (pointers.current.size === 2) {
+          if (pan.current) endPan(pan.current.pointerId);
+          startGesture();
+          return;
+        }
+        if (pointers.current.size === 1) {
+          if (!readBase()) return;
+          pan.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            viewX: view.current.x,
+            viewY: view.current.y,
+          };
+          stage.classList.add('is-panning');
+          stage.setPointerCapture(event.pointerId);
+        }
+        return;
+      }
+
       if (pointers.current.size === 2) startGesture();
     };
 
     const onPointerMove = (event: PointerEvent): void => {
+      const activePan = pan.current;
+      if (activePan && activePan.pointerId === event.pointerId) {
+        const dx = event.clientX - activePan.startX;
+        const dy = event.clientY - activePan.startY;
+        view.current.x = activePan.viewX + dx;
+        view.current.y = activePan.viewY + dy;
+        clampView();
+        apply();
+        return;
+      }
+
       const pointer = pointers.current.get(event.pointerId);
       if (!pointer) return;
 
@@ -217,6 +277,7 @@ export function usePinchZoom(
     };
 
     const onPointerUp = (event: PointerEvent): void => {
+      endPan(event.pointerId);
       pointers.current.delete(event.pointerId);
       if (gesture.current && pointers.current.size < 2) gesture.current = null;
       if (view.current.scale < SNAP_BACK) reset();
@@ -252,7 +313,7 @@ export function usePinchZoom(
       window.removeEventListener('pointercancel', onPointerUp);
       stage.removeEventListener('wheel', onWheel);
     };
-  }, [apply, clampView, readBase, reset, scaleAround, sheetRef, stageRef]);
+  }, [apply, clampView, endPan, isMoveTool, readBase, reset, scaleAround, sheetRef, stageRef]);
 
   return { reset, zoomIn, zoomOut, apply };
 }

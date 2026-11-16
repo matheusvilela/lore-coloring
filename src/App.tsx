@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { parseSavedHistory } from './canvas/history';
 import { CANVAS_H, CANVAS_W, Painter, type HistoryState } from './canvas/Painter';
-import type { SizeIndex, Tool } from './canvas/tools';
+import { DEFAULT_SIZE_T, type Tool } from './canvas/tools';
 import { usePinchZoom } from './canvas/zoom';
 import { Confirm } from './components/Confirm';
 import { Dock } from './components/Dock';
@@ -69,7 +69,7 @@ export default function App() {
 
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState(DEFAULT_COLOR);
-  const [sizeIndex, setSizeIndex] = useState<SizeIndex>(1);
+  const [sizeT, setSizeT] = useState(DEFAULT_SIZE_T);
   const [painterReady, setPainterReady] = useState(false);
   const [sheetSize, setSheetSize] = useState<SheetSize | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
@@ -151,7 +151,7 @@ export default function App() {
         onHistoryChange,
         onPaintDirty: () => scheduleSaveRef.current(),
       },
-      { tool, color, sizeIndex },
+      { tool, color, sizeT },
     );
     painterRef.current = painter;
     setPainterReady(true);
@@ -235,8 +235,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    painterRef.current?.setTool({ tool, color, sizeIndex });
-  }, [tool, color, sizeIndex]);
+    painterRef.current?.setTool({ tool, color, sizeT });
+  }, [tool, color, sizeT]);
 
   useEffect(() => {
     const painter = painterRef.current;
@@ -411,12 +411,12 @@ export default function App() {
       <Dock
         tool={tool}
         color={color}
-        sizeIndex={sizeIndex}
+        sizeT={sizeT}
         canUndo={canUndo}
         canRedo={canRedo}
         onTool={setTool}
         onColor={setColor}
-        onSize={setSizeIndex}
+        onSizeT={setSizeT}
         onUndo={undo}
         onRedo={redo}
         onOpenGrid={openGrid}

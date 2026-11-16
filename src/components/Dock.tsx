@@ -1,9 +1,11 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  SIZE_LABELS,
   TOOLS,
+  dockSizeDotPx,
+  popoverThumbHeight,
+  resolveSize,
   toolUsesSize,
-  type SizeIndex,
   type Tool,
 } from '../canvas/tools';
 import { PALETTE } from '../data/palette';
@@ -13,17 +15,18 @@ const TOOL_LABELS: Record<Tool, string> = {
   crayon: 'Giz de cera',
   eraser: 'Borracha',
   bucket: 'Balde de tinta',
+  move: 'Mover',
 };
 
 type Props = {
   tool: Tool;
   color: string;
-  sizeIndex: SizeIndex;
+  sizeT: number;
   canUndo: boolean;
   canRedo: boolean;
   onTool: (tool: Tool) => void;
   onColor: (hex: string) => void;
-  onSize: (index: SizeIndex) => void;
+  onSizeT: (value: number) => void;
   onUndo: () => void;
   onRedo: () => void;
   onOpenGrid: () => void;
@@ -35,12 +38,12 @@ type Props = {
 export function Dock({
   tool,
   color,
-  sizeIndex,
+  sizeT,
   canUndo,
   canRedo,
   onTool,
   onColor,
-  onSize,
+  onSizeT,
   onUndo,
   onRedo,
   onOpenGrid,
@@ -52,7 +55,16 @@ export function Dock({
   const controlsRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const paintRef = useRef<HTMLDivElement>(null);
+  const sizeAnchorRef = useRef<HTMLDivElement>(null);
+  const sizeButtonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [stacked, setStacked] = useState(false);
+  const [sizeOpen, setSizeOpen] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
+  const popoverId = useId();
+  const previewTool = stillUsesSize ? tool : 'brush';
+  const dotPx = dockSizeDotPx(sizeT, previewTool);
+  const thumbHeightPx = popoverThumbHeight(previewTool, sizeT);
 
   useLayoutEffect(() => {
     const controls = controlsRef.current;
@@ -82,6 +94,55 @@ export function Dock({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    setSizeOpen(false);
+  }, [tool]);
+
+  useLayoutEffect(() => {
+    if (!sizeOpen) return;
+    const place = () => {
+      const button = sizeButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(220, window.innerWidth - 24);
+      const right = Math.max(12, window.innerWidth - rect.right);
+      const mobile = window.matchMedia('(max-width: 759px)').matches;
+      setPopoverStyle({
+        position: 'fixed',
+        right,
+        width,
+        left: 'auto',
+        ...(mobile
+          ? { top: rect.bottom + 8, bottom: 'auto' }
+          : { top: 'auto', bottom: window.innerHeight - rect.top + 8 }),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [sizeOpen]);
+
+  useEffect(() => {
+    if (!sizeOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (sizeAnchorRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setSizeOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    return () => document.removeEventListener('pointerdown', dismiss);
+  }, [sizeOpen]);
+
+  const pickTool = (item: Tool) => {
+    setSizeOpen(false);
+    onTool(item);
+  };
+
   return (
     <footer className="dock">
       <div className="dock__tools">
@@ -98,27 +159,64 @@ export function Dock({
                   className={`tool${item === tool ? ' is-active' : ''}`}
                   aria-label={TOOL_LABELS[item]}
                   aria-pressed={item === tool}
-                  onClick={() => onTool(item)}
+                  onClick={() => pickTool(item)}
                 >
                   <ToolIcon tool={item} />
                 </button>
               ))}
             </div>
 
-            <div className="sizes" role="group" aria-label="Tamanho do traço">
-              {SIZE_LABELS.map((label, index) => (
-                <button
-                  key={label}
-                  type="button"
-                  className={`size${index === sizeIndex ? ' is-active' : ''}`}
-                  aria-label={`Tamanho ${label}`}
-                  aria-pressed={index === sizeIndex}
-                  disabled={!stillUsesSize}
-                  onClick={() => onSize(index as SizeIndex)}
+            <div ref={sizeAnchorRef} className="dock__size-anchor">
+              <button
+                ref={sizeButtonRef}
+                type="button"
+                className={`tool tool--size${sizeOpen ? ' is-active' : ''}`}
+                aria-label="Tamanho do traço"
+                aria-expanded={sizeOpen}
+                aria-controls={sizeOpen ? popoverId : undefined}
+                disabled={!stillUsesSize}
+                onClick={() => setSizeOpen((open) => !open)}
+              >
+                <SizeIcon dotPx={dotPx} />
+              </button>
+              {sizeOpen && stillUsesSize
+                ? createPortal(
+                <div
+                  ref={popoverRef}
+                  id={popoverId}
+                  className="size-popover"
+                  style={popoverStyle}
+                  role="dialog"
+                  aria-label="Espessura do traço"
+                  onPointerDown={(event) => event.stopPropagation()}
                 >
-                  <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
-                </button>
-              ))}
+                  <div className="size-popover__wedge">
+                    <svg className="size-popover__track" viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true">
+                      <polygon points="0,36 200,2 200,36" fill="currentColor" opacity="0.22" />
+                    </svg>
+                    <input
+                      type="range"
+                      className="size-popover__range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(sizeT * 100)}
+                      aria-valuemin={resolveSize(previewTool, 0)}
+                      aria-valuemax={resolveSize(previewTool, 1)}
+                      aria-valuenow={resolveSize(previewTool, sizeT)}
+                      aria-valuetext={`${resolveSize(previewTool, sizeT)} pixels`}
+                      onChange={(event) => onSizeT(Number(event.target.value) / 100)}
+                    />
+                    <span
+                      className="size-popover__thumb"
+                      style={{ height: thumbHeightPx, left: `${sizeT * 100}%` }}
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>,
+                document.body,
+              )
+                : null}
             </div>
           </div>
 
@@ -180,6 +278,16 @@ export function Dock({
   );
 }
 
+function SizeIcon({ dotPx }: { dotPx: number }) {
+  return (
+    <span
+      className="size-icon"
+      style={{ width: dotPx, height: dotPx }}
+      aria-hidden="true"
+    />
+  );
+}
+
 /**
  * Ícones em 24 px com o mesmo traço 1,9 do balde.
  * Pincel e borracha vêm do Bootstrap Icons (MIT) e do Lucide (ISC); o giz de
@@ -229,6 +337,27 @@ function ToolIcon({ tool }: { tool: Tool }) {
       >
         <path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
         <path d="m5.082 11.09 8.828 8.828" />
+      </svg>
+    );
+  }
+
+  if (tool === 'move') {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        width="26"
+        height="26"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M8 13v-7.5a1.5 1.5 0 0 1 3 0v6.5" />
+        <path d="M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5" />
+        <path d="M14 5.5a1.5 1.5 0 0 1 3 0v6.5" />
+        <path d="M17 7.5a1.5 1.5 0 0 1 3 0v8.5a6 6 0 0 1-6 6h-2h.208a6 6 0 0 1-5.012-2.7l-.196-.3-2.5-4.5a1.5 1.5 0 0 1 2.584-1.5l1.916 2.5" />
       </svg>
     );
   }

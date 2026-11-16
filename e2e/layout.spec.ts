@@ -39,26 +39,26 @@ test('no celular: colunas alinham entre as duas linhas', async ({ page }) => {
 
   const grid = page.getByRole('button', { name: 'Grade de letras' });
   const brush = page.getByRole('button', { name: 'Pincel' });
+  const move = page.getByRole('button', { name: 'Mover' });
+  const sizeBtn = page.getByRole('button', { name: 'Tamanho do traço' });
   const zoomOut = page.getByRole('button', { name: 'Zoom menos' });
   const clear = page.getByRole('button', { name: 'Limpar letra atual' });
-  const small = page.getByRole('button', { name: 'Tamanho pequeno' });
-  const large = page.getByRole('button', { name: 'Tamanho grande' });
 
   const gridBox = await grid.boundingBox();
   const brushBox = await brush.boundingBox();
+  const moveBox = await move.boundingBox();
+  const sizeBox = await sizeBtn.boundingBox();
   const zoomOutBox = await zoomOut.boundingBox();
   const clearBox = await clear.boundingBox();
-  const smallBox = await small.boundingBox();
-  const largeBox = await large.boundingBox();
   expect(gridBox).not.toBeNull();
   expect(brushBox).not.toBeNull();
+  expect(moveBox).not.toBeNull();
+  expect(sizeBox).not.toBeNull();
   expect(zoomOutBox).not.toBeNull();
   expect(clearBox).not.toBeNull();
-  expect(smallBox).not.toBeNull();
-  expect(largeBox).not.toBeNull();
   expect(gridBox!.x).toBeCloseTo(brushBox!.x, 0);
-  expect(smallBox!.x).toBeCloseTo(zoomOutBox!.x, 0);
-  expect(largeBox!.x + largeBox!.width).toBeCloseTo(clearBox!.x + clearBox!.width, 0);
+  expect(moveBox!.x).toBeCloseTo(zoomOutBox!.x, 0);
+  expect(sizeBox!.x + sizeBox!.width).toBeCloseTo(clearBox!.x + clearBox!.width, 0);
 });
 
 test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }) => {
@@ -127,4 +127,35 @@ test('no desktop baixo: controles numa fita horizontal', async ({ page }) => {
   });
   expect(styles.wrap).toBe('nowrap');
   expect(styles.overflowX).toBe('auto');
+});
+
+test('menu de tamanho: visível, alinhado à direita, linha na base da cunha', async ({ page }) => {
+  await page.setViewportSize({ width: 448, height: 997 });
+  await page.goto('/');
+
+  const button = page.getByRole('button', { name: 'Tamanho do traço' });
+  await button.click();
+  const popover = page.getByRole('dialog', { name: 'Espessura do traço' });
+  await expect(popover).toBeVisible();
+
+  const buttonBox = await button.boundingBox();
+  const popoverBox = await popover.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(popoverBox).not.toBeNull();
+  expect(popoverBox!.y).toBeGreaterThan(buttonBox!.y + buttonBox!.height - 2);
+  expect(popoverBox!.x + popoverBox!.width).toBeCloseTo(buttonBox!.x + buttonBox!.width, 0);
+  expect(popoverBox!.y + popoverBox!.height).toBeLessThan(997);
+
+  const baselineGap = await page.evaluate(() => {
+    const thumb = document.querySelector('.size-popover__thumb')!;
+    const track = document.querySelector('.size-popover__track')!;
+    return thumb.getBoundingClientRect().bottom - track.getBoundingClientRect().bottom;
+  });
+  expect(baselineGap).toBeCloseTo(2, 0);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const desktopButton = await button.boundingBox();
+  const desktopPopover = await popover.boundingBox();
+  expect(desktopPopover!.y + desktopPopover!.height).toBeLessThan(desktopButton!.y + 4);
+  expect(desktopPopover!.x + desktopPopover!.width).toBeCloseTo(desktopButton!.x + desktopButton!.width, 0);
 });
