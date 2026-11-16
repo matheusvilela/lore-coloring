@@ -2,6 +2,8 @@
 
 App de colorir com as letras do *Alphabet Lore*, para celular, tablet e desktop.
 
+**Versão publicada:** https://matheusvilela.github.io/lore-coloring/
+
 ## Como rodar local
 
 Pré-requisitos: **Node 22** (o repositório traz um `.nvmrc`; o Vite 8 aceita
@@ -54,13 +56,6 @@ npm run test:e2e
 
 O Playwright sobe e derruba o `preview` sozinho — não é preciso ter servidor
 rodando.
-
-### Se o `npm run dev` não subir
-
-- `zsh: command not found: vite` → faltou `npm ci` (ou você está em outra pasta).
-- erro de sintaxe dentro do `vite` → Node antigo; confira com `node -v` e rode `nvm use`.
-- `nvm use` reclamando de versão → instale a linha 22: `nvm install 22 && nvm use`.
-- porta ocupada → o Vite escolhe a próxima sozinho; olhe a URL que ele imprime.
 
 ## Estrutura
 
