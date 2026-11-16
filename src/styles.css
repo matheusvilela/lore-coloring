@@ -435,7 +435,6 @@ body {
     flex-shrink: 0;
     gap: 8px;
     background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   }
 
   .palette {
