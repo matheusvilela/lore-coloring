@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   SIZE_LABELS,
   TOOLS,
@@ -48,12 +49,45 @@ export function Dock({
   onClearLetter,
 }: Props) {
   const stillUsesSize = toolUsesSize(tool);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const paintRef = useRef<HTMLDivElement>(null);
+  const [stacked, setStacked] = useState(false);
+  const [rowSepOnPaint, setRowSepOnPaint] = useState(true);
+
+  useLayoutEffect(() => {
+    const controls = controlsRef.current;
+    const actions = actionsRef.current;
+    const paint = paintRef.current;
+    if (!controls || !actions || !paint) return;
+
+    const measure = () => {
+      const actionsTop = actions.offsetTop;
+      const paintTop = paint.offsetTop;
+      const isStacked = Math.abs(actionsTop - paintTop) > 4;
+      setStacked(isStacked);
+      setRowSepOnPaint(paintTop > actionsTop);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(controls);
+    observer.observe(actions);
+    observer.observe(paint);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <footer className="dock">
       <div className="dock__tools">
-        <div className="dock__controls">
-          <div className="dock__block dock__block--actions">
+        <div
+          ref={controlsRef}
+          className={`dock__controls${stacked ? ' is-stacked' : ' is-inline'}`}
+        >
+          <div
+            ref={actionsRef}
+            className={`dock__block dock__block--actions${stacked && !rowSepOnPaint ? ' dock__block--row-sep' : ''}`}
+          >
             <div className="dock__actions" role="group" aria-label="Ações">
               <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
                 <GridIcon />
@@ -86,10 +120,14 @@ export function Dock({
                 <ClearLetterIcon />
               </button>
             </div>
-            <span className="dock__sep" aria-hidden="true" />
           </div>
 
-          <div className="dock__block dock__block--paint">
+          <span className="dock__sep dock__sep--v" aria-hidden="true" />
+
+          <div
+            ref={paintRef}
+            className={`dock__block dock__block--paint${stacked && rowSepOnPaint ? ' dock__block--row-sep' : ''}`}
+          >
             <div className="tools" role="group" aria-label="Ferramentas">
               {TOOLS.map((item) => (
                 <button

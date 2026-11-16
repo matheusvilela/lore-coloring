@@ -33,27 +33,54 @@ test('no celular: ações ficam acima das ferramentas de pintura', async ({ page
   expect(undoBox!.y + undoBox!.height).toBeLessThanOrEqual(brushBox!.y + 4);
 });
 
-test('no celular: o divisor some na coluna', async ({ page }) => {
+test('no celular: separador horizontal entre as linhas; botões do mesmo tamanho', async ({ page }) => {
   await page.setViewportSize({ width: 448, height: 997 });
   await page.goto('/');
-  await expect(page.locator('.dock__sep')).toBeHidden();
+
+  await expect(page.locator('.dock__controls')).toHaveClass(/is-stacked/);
+  await expect(page.locator('.dock__block--paint.dock__block--row-sep')).toBeVisible();
+  await expect(page.locator('.dock__sep--v')).toBeHidden();
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  const brush = page.getByRole('button', { name: 'Pincel' });
+  const undoBox = await undo.boundingBox();
+  const brushBox = await brush.boundingBox();
+  expect(undoBox!.width).toBeCloseTo(brushBox!.width, 0);
+  expect(undoBox!.height).toBeCloseTo(brushBox!.height, 0);
 });
 
-test('no desktop largo: ações e pintura compartilham uma faixa com divisor', async ({ page }) => {
+test('no desktop largo: pintura à esquerda das ações numa faixa com divisor vertical', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
 
   const undo = page.getByRole('button', { name: 'Desfazer' });
   const brush = page.getByRole('button', { name: 'Pincel' });
-  const sep = page.locator('.dock__sep');
+  const sep = page.locator('.dock__sep--v');
 
   const undoBox = await undo.boundingBox();
   const brushBox = await brush.boundingBox();
   expect(undoBox).not.toBeNull();
   expect(brushBox).not.toBeNull();
+  expect(brushBox!.x).toBeLessThan(undoBox!.x);
   const dy = Math.abs((undoBox?.y ?? 0) - (brushBox?.y ?? 0));
   expect(dy).toBeLessThanOrEqual(8);
   await expect(sep).toBeVisible();
+  await expect(page.locator('.dock__controls')).toHaveClass(/is-inline/);
+});
+
+test('no desktop estreito: pintura na linha de cima e separador horizontal', async ({ page }) => {
+  await page.setViewportSize({ width: 760, height: 900 });
+  await page.goto('/');
+
+  await expect(page.locator('.dock__controls')).toHaveClass(/is-stacked/);
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  const brush = page.getByRole('button', { name: 'Pincel' });
+  const undoBox = await undo.boundingBox();
+  const brushBox = await brush.boundingBox();
+  expect(brushBox!.y + brushBox!.height).toBeLessThanOrEqual(undoBox!.y + 4);
+  await expect(page.locator('.dock__block--actions.dock__block--row-sep')).toBeVisible();
+  await expect(page.locator('.dock__sep--v')).toBeHidden();
 });
 
 test('no desktop baixo: controles numa fita horizontal', async ({ page }) => {

@@ -296,11 +296,22 @@ body {
   box-shadow: inset 0 0 0 3px currentColor, 0 3px 10px rgba(42, 38, 34, 0.12);
 }
 
-.dock__sep {
+.dock__sep--v {
   flex-shrink: 0;
+  align-self: center;
   width: 1px;
-  height: 34px;
+  height: 56px;
   background: rgba(42, 38, 34, 0.14);
+}
+
+.dock__controls.is-stacked .dock__sep--v {
+  display: none;
+}
+
+.dock__block--row-sep {
+  border-top: 1px solid rgba(42, 38, 34, 0.14);
+  padding-top: 6px;
+  margin-top: 2px;
 }
 
 .sizes {
@@ -427,11 +438,8 @@ body {
 
   .dock__controls {
     flex-direction: column;
-    gap: 6px;
-  }
-
-  .dock__sep {
-    display: none;
+    align-items: stretch;
+    gap: 0;
   }
 
   .dock__block--actions,
@@ -466,6 +474,10 @@ body {
     background: var(--glass-bg);
   }
 
+  .dock__block--paint {
+    order: -1;
+  }
+
   .palette {
     grid-template-columns: repeat(12, minmax(0, 1fr));
     max-width: 720px;
@@ -497,8 +509,6 @@ body {
 }
 
 .tool--meta {
-  width: 48px;
-  height: 48px;
   color: #6d655c;
 }
 
@@ -660,6 +670,10 @@ body {
     border-radius: 16px;
   }
 
+  .dock__sep--v {
+    height: 50px;
+  }
+
   .sizes {
     gap: 2px;
   }
@@ -668,11 +682,6 @@ body {
     width: 34px;
     height: 34px;
     border-radius: 11px;
-  }
-
-  .tool--meta {
-    width: 44px;
-    height: 44px;
   }
 }
 
@@ -713,6 +722,10 @@ body {
     width: 44px;
     height: 44px;
     border-radius: 14px;
+  }
+
+  .dock__sep--v {
+    height: 44px;
   }
 
   .tool svg {
