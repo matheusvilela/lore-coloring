@@ -174,8 +174,8 @@ export default function App() {
       await painter.loadLetter(letter);
       const saved = await getPaint(letter);
       if (saved) await painter.restorePaint(saved);
-      preload(LETTERS[index + 1]);
-      preload(LETTERS[index - 1]);
+      preload(LETTERS[(index + 1) % LETTERS.length]);
+      preload(LETTERS[(index - 1 + LETTERS.length) % LETTERS.length]);
     })();
   }, [letter, index, resetZoom, painterReady]);
 
@@ -189,16 +189,9 @@ export default function App() {
     setScreen('studio');
   }, []);
 
-  const go = useCallback(
-    (delta: number) => {
-      if (delta > 0 && index === LETTERS.length - 1) {
-        openGrid();
-        return;
-      }
-      setIndex((current) => Math.min(LETTERS.length - 1, Math.max(0, current + delta)));
-    },
-    [index, openGrid],
-  );
+  const go = useCallback((delta: number) => {
+    setIndex((current) => (current + delta + LETTERS.length) % LETTERS.length);
+  }, []);
 
   const undo = useCallback(() => {
     painterRef.current?.undo();
@@ -261,7 +254,6 @@ export default function App() {
           <button
             className="btn nav"
             onClick={() => go(-1)}
-            disabled={index === 0}
             aria-label="Letra anterior"
           >
             <Arrow direction="left" />
@@ -270,7 +262,7 @@ export default function App() {
           <button
             className="btn nav"
             onClick={() => go(1)}
-            aria-label={index === LETTERS.length - 1 ? 'Ver todas as letras' : 'Próxima letra'}
+            aria-label="Próxima letra"
           >
             <Arrow direction="right" />
           </button>

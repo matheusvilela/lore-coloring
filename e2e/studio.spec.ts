@@ -59,6 +59,15 @@ test('pinta, desfaz e navega entre as letras', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Letra anterior' }).click();
   await expect(page.locator('.letter-status')).toHaveText('A');
+
+  const next = page.getByRole('button', { name: 'Próxima letra' });
+  const prev = page.getByRole('button', { name: 'Letra anterior' });
+  for (let i = 0; i < 25; i++) await next.click();
+  await expect(page.locator('.letter-status')).toHaveText('Z');
+  await next.click();
+  await expect(page.locator('.letter-status')).toHaveText('A');
+  await prev.click();
+  await expect(page.locator('.letter-status')).toHaveText('Z');
 });
 
 test('a tinta nunca é alterada pela pintura', async ({ page }) => {
