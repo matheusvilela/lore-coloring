@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   TOOLS,
   dockSizeDotPx,
+  popoverThumbHeight,
   resolveSize,
   toolUsesSize,
   type Tool,
@@ -63,6 +64,7 @@ export function Dock({
   const popoverId = useId();
   const previewTool = stillUsesSize ? tool : 'brush';
   const dotPx = dockSizeDotPx(sizeT, previewTool);
+  const thumbHeightPx = popoverThumbHeight(previewTool, sizeT);
 
   useLayoutEffect(() => {
     const controls = controlsRef.current;
@@ -207,7 +209,7 @@ export function Dock({
                     />
                     <span
                       className="size-popover__thumb"
-                      style={{ left: `${sizeT * 100}%` }}
+                      style={{ height: thumbHeightPx, left: `${sizeT * 100}%` }}
                       aria-hidden="true"
                     />
                   </div>
