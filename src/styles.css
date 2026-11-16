@@ -460,15 +460,8 @@ body {
   padding: 8px 12px;
 }
 
-.grid-screen__title {
-  flex: 1;
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--accent);
-}
-
 .grid-screen__clear-all {
+  margin-left: auto;
   flex-shrink: 0;
   color: #6d655c;
 }

@@ -54,7 +54,6 @@ export function LetterGrid({
         <button type="button" className="btn nav" onClick={onClose} aria-label="Voltar ao desenho">
           <ArrowBack />
         </button>
-        <p className="grid-screen__title">Suas letras</p>
         <button
           type="button"
           className="btn nav grid-screen__clear-all"
