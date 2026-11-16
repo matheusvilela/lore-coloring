@@ -308,9 +308,9 @@ body {
   display: none;
 }
 
-/* duas linhas: mesma grade de colunas para alinhar botão 1 com botão 1 */
+/* duas linhas: 6 colunas — os 3 tamanhos ocupam as duas últimas (mais estreitas) */
 .dock__controls.is-stacked {
-  --dock-cols: 7;
+  --dock-cols: 6;
   --dock-cell: 56px;
   display: grid;
   grid-template-columns: repeat(var(--dock-cols), var(--dock-cell));
@@ -332,18 +332,31 @@ body {
 .dock__controls.is-stacked .dock__block--paint,
 .dock__controls.is-stacked .dock__block--actions,
 .dock__controls.is-stacked .tools,
-.dock__controls.is-stacked .sizes,
 .dock__controls.is-stacked .dock__actions {
   display: contents;
 }
 
+.dock__controls.is-stacked .sizes {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  grid-column: 5 / span 2;
+}
+
 .dock__controls.is-stacked .size {
-  justify-self: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
+  flex-shrink: 0;
 }
 
 @media (min-width: 760px) {
-  .dock__controls.is-stacked .tools .tool,
-  .dock__controls.is-stacked .sizes .size {
+  .dock__controls.is-stacked .tools .tool {
+    grid-row: 1;
+  }
+
+  .dock__controls.is-stacked .sizes {
     grid-row: 1;
   }
 
@@ -475,7 +488,7 @@ body {
   }
 
   .dock__controls {
-    --dock-cols: 7;
+    --dock-cols: 6;
     --dock-cell: 56px;
     display: grid;
     grid-template-columns: repeat(var(--dock-cols), var(--dock-cell));
@@ -498,17 +511,28 @@ body {
   .dock__block--paint,
   .dock__block--actions,
   .tools,
-  .sizes,
   .dock__actions {
     display: contents;
+  }
+
+  .sizes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    grid-column: 5 / span 2;
+    grid-row: 2;
   }
 
   .dock__sep--v {
     display: none;
   }
 
-  .size {
-    justify-self: center;
+  .dock__controls .size {
+    width: 30px;
+    height: 30px;
+    border-radius: 11px;
+    flex-shrink: 0;
   }
 
   /* celular: ações na linha 1, pintura na linha 2 */
@@ -518,9 +542,7 @@ body {
   }
 
   .dock__controls.is-stacked .tools .tool,
-  .dock__controls.is-stacked .sizes .size,
-  .tools .tool,
-  .sizes .size {
+  .tools .tool {
     grid-row: 2;
   }
 
@@ -739,14 +761,15 @@ body {
     --dock-cell: 50px;
   }
 
-  .sizes {
+  .dock__controls .sizes {
     gap: 2px;
   }
 
-  .size {
-    width: 34px;
-    height: 34px;
-    border-radius: 11px;
+  .dock__controls .size,
+  .dock__controls.is-stacked .size {
+    width: 26px;
+    height: 26px;
+    border-radius: 10px;
   }
 }
 
@@ -803,9 +826,11 @@ body {
     height: 22px;
   }
 
-  .size {
-    width: 34px;
-    height: 34px;
+  .dock__controls .size,
+  .dock__controls.is-stacked .size {
+    width: 24px;
+    height: 24px;
+    border-radius: 9px;
   }
 
   /* a altura é o recurso escasso: a paleta vira uma fita horizontal */

@@ -39,11 +39,20 @@ test('no celular: colunas alinham entre as duas linhas', async ({ page }) => {
 
   const grid = page.getByRole('button', { name: 'Grade de letras' });
   const brush = page.getByRole('button', { name: 'Pincel' });
+  const zoomOut = page.getByRole('button', { name: 'Zoom menos' });
+  const clear = page.getByRole('button', { name: 'Limpar letra atual' });
+  const sizes = page.locator('.sizes');
+
   const gridBox = await grid.boundingBox();
   const brushBox = await brush.boundingBox();
+  const zoomOutBox = await zoomOut.boundingBox();
+  const clearBox = await clear.boundingBox();
+  const sizesBox = await sizes.boundingBox();
   expect(gridBox).not.toBeNull();
   expect(brushBox).not.toBeNull();
   expect(gridBox!.x).toBeCloseTo(brushBox!.x, 0);
+  expect(zoomOutBox!.x).toBeCloseTo(sizesBox!.x, 0);
+  expect(clearBox!.x + clearBox!.width).toBeCloseTo(sizesBox!.x + sizesBox!.width, 0);
 });
 
 test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }) => {
