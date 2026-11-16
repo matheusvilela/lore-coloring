@@ -16,8 +16,8 @@ import {
   requestPersistentStorage,
 } from './storage/db';
 
-type Size = { w: number; h: number };
 type Screen = 'studio' | 'grid';
+type SheetSize = { w: number; h: number; contentW: number; contentH: number };
 
 function preload(letter: string | undefined): void {
   if (!letter) return;
@@ -44,12 +44,12 @@ export default function App() {
 
   const [index, setIndex] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
-  const [size, setSize] = useState<Size>({ w: 0, h: 0 });
 
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [sizeIndex, setSizeIndex] = useState<SizeIndex>(1);
   const [painterReady, setPainterReady] = useState(false);
+  const [sheetSize, setSheetSize] = useState<SheetSize | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
 
   const letter = LETTERS[index]!;
@@ -160,13 +160,26 @@ export default function App() {
       if (width <= 0 || height <= 0) return;
 
       const scale = Math.min(width / CANVAS_W, height / CANVAS_H);
-      setSize({ w: Math.floor(CANVAS_W * scale), h: Math.floor(CANVAS_H * scale) });
+      const contentW = Math.floor(CANVAS_W * scale);
+      const contentH = Math.floor(CANVAS_H * scale);
+      const desktop = window.matchMedia('(min-width: 760px)').matches;
+      setSheetSize(
+        desktop
+          ? { w: Math.floor(width), h: Math.floor(height), contentW, contentH }
+          : { w: contentW, h: contentH, contentW, contentH },
+      );
     };
 
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(stage);
-    return () => observer.disconnect();
+    const mq = window.matchMedia('(min-width: 760px)');
+    const onMq = () => fit();
+    mq.addEventListener('change', onMq);
+    return () => {
+      observer.disconnect();
+      mq.removeEventListener('change', onMq);
+    };
   }, []);
 
   useEffect(() => {
@@ -243,10 +256,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [go, resetZoom, undo]);
 
-  const sheetZoomed = Math.abs(zoomScale - 1) > 0.01;
-
   return (
-    <div className={`app${sheetZoomed ? ' app--sheet-zoomed' : ''}`}>
+    <div className="app">
       <p className="letter-status" role="status" aria-live="polite">
         {letter}
       </p>
@@ -257,15 +268,21 @@ export default function App() {
             {Math.round(zoomScale * 100)}%
           </span>
         ) : null}
-        <div
-          className="sheet-wrap"
-          style={{ width: size.w || undefined, height: size.h || undefined }}
-        >
+        <div className="sheet-wrap">
           <div
             className="sheet"
             ref={sheetRef}
             data-letter={letter}
-            style={{ width: size.w || undefined, height: size.h || undefined }}
+            style={
+              sheetSize
+                ? {
+                    width: sheetSize.w,
+                    height: sheetSize.h,
+                    ['--sheet-content-w' as string]: `${sheetSize.contentW}px`,
+                    ['--sheet-content-h' as string]: `${sheetSize.contentH}px`,
+                  }
+                : undefined
+            }
           />
         </div>
 

@@ -103,11 +103,11 @@ export class Painter {
 
     this.sheet.dataset.tool = this.tool;
 
-    this.ink.addEventListener('pointerdown', this.onPointerDown);
-    this.ink.addEventListener('pointermove', this.onPointerMove);
-    this.ink.addEventListener('pointerup', this.onPointerUp);
-    this.ink.addEventListener('pointercancel', this.onPointerCancel);
-    this.ink.addEventListener('contextmenu', prevent);
+    this.sheet.addEventListener('pointerdown', this.onPointerDown);
+    this.sheet.addEventListener('pointermove', this.onPointerMove);
+    this.sheet.addEventListener('pointerup', this.onPointerUp);
+    this.sheet.addEventListener('pointercancel', this.onPointerCancel);
+    this.sheet.addEventListener('contextmenu', prevent);
   }
 
   /* ---------- API pública ---------- */
@@ -165,7 +165,7 @@ export class Painter {
     this.activePointer = null;
     this.current = null;
     this.pendingFill = null;
-    if (this.ink.hasPointerCapture(id)) this.ink.releasePointerCapture(id);
+    if (this.sheet.hasPointerCapture(id)) this.sheet.releasePointerCapture(id);
     if (this.frame) {
       cancelAnimationFrame(this.frame);
       this.frame = 0;
@@ -214,11 +214,11 @@ export class Painter {
   destroy(): void {
     this.destroyed = true;
     if (this.frame) cancelAnimationFrame(this.frame);
-    this.ink.removeEventListener('pointerdown', this.onPointerDown);
-    this.ink.removeEventListener('pointermove', this.onPointerMove);
-    this.ink.removeEventListener('pointerup', this.onPointerUp);
-    this.ink.removeEventListener('pointercancel', this.onPointerCancel);
-    this.ink.removeEventListener('contextmenu', prevent);
+    this.sheet.removeEventListener('pointerdown', this.onPointerDown);
+    this.sheet.removeEventListener('pointermove', this.onPointerMove);
+    this.sheet.removeEventListener('pointerup', this.onPointerUp);
+    this.sheet.removeEventListener('pointercancel', this.onPointerCancel);
+    this.sheet.removeEventListener('contextmenu', prevent);
     for (const c of [this.paint, this.wet, this.ink]) c.remove();
   }
 
@@ -243,9 +243,11 @@ export class Painter {
 
   private toLocal(event: PointerEvent): Point {
     const rect = this.ink.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 };
+    const scale = rect.width / CANVAS_W;
     return {
-      x: ((event.clientX - rect.left) / rect.width) * CANVAS_W,
-      y: ((event.clientY - rect.top) / rect.height) * CANVAS_H,
+      x: clamp((event.clientX - rect.left) / scale, 0, CANVAS_W - 1),
+      y: clamp((event.clientY - rect.top) / scale, 0, CANVAS_H - 1),
     };
   }
 
@@ -506,13 +508,13 @@ export class Painter {
     if (this.tool === 'bucket') {
       // pinta ao soltar: se um segundo dedo chegar, vira pinça e o toque é cancelado
       this.activePointer = event.pointerId;
-      this.ink.setPointerCapture(event.pointerId);
+      this.sheet.setPointerCapture(event.pointerId);
       this.pendingFill = point;
       return;
     }
 
     this.activePointer = event.pointerId;
-    this.ink.setPointerCapture(event.pointerId);
+    this.sheet.setPointerCapture(event.pointerId);
 
     if (this.tool === 'eraser') {
       this.current = { kind: 'erase', size: this.size, pts: [point] };
@@ -562,7 +564,7 @@ export class Painter {
       const point = this.pendingFill;
       this.pendingFill = null;
       this.activePointer = null;
-      if (this.ink.hasPointerCapture(event.pointerId)) this.ink.releasePointerCapture(event.pointerId);
+      if (this.sheet.hasPointerCapture(event.pointerId)) this.sheet.releasePointerCapture(event.pointerId);
       this.fillAt(point);
       return;
     }
@@ -575,7 +577,7 @@ export class Painter {
 
     this.activePointer = null;
     this.current = null;
-    if (this.ink.hasPointerCapture(event.pointerId)) this.ink.releasePointerCapture(event.pointerId);
+    if (this.sheet.hasPointerCapture(event.pointerId)) this.sheet.releasePointerCapture(event.pointerId);
 
     if (this.frame) {
       cancelAnimationFrame(this.frame);
@@ -598,7 +600,7 @@ export class Painter {
     if (this.pendingFill) {
       this.pendingFill = null;
       this.activePointer = null;
-      if (this.ink.hasPointerCapture(event.pointerId)) this.ink.releasePointerCapture(event.pointerId);
+      if (this.sheet.hasPointerCapture(event.pointerId)) this.sheet.releasePointerCapture(event.pointerId);
       return;
     }
     this.onPointerUp(event);
