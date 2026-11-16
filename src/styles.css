@@ -508,7 +508,6 @@ body {
   box-shadow: var(--shadow), inset 0 0 0 3px var(--accent);
 }
 
-.letter-cell__thumb,
 .letter-cell__paint,
 .letter-cell__ink {
   position: absolute;

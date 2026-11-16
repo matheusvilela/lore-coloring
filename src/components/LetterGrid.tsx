@@ -77,13 +77,9 @@ export function LetterGrid({
                 onClick={() => onPick(letter)}
               >
                 {previews[letter] ? (
-                  <>
-                    <img className="letter-cell__paint" src={previews[letter]} alt="" />
-                    <img className="letter-cell__ink" src={assetUrl(letter, 'ink.png')} alt="" />
-                  </>
-                ) : (
-                  <img className="letter-cell__thumb" src={assetUrl(letter, 'thumb.webp')} alt="" />
-                )}
+                  <img className="letter-cell__paint" src={previews[letter]} alt="" />
+                ) : null}
+                <img className="letter-cell__ink" src={assetUrl(letter, 'ink.png')} alt="" />
               </button>
               {previews[letter] || painted.has(letter) ? (
                 <button
