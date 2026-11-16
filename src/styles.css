@@ -308,9 +308,129 @@ body {
   }
 }
 
-/* ---------- celulares estreitos: ferramentas e tamanhos numa linha só ---------- */
+.dock__row--meta {
+  gap: 8px;
+}
 
-@media (max-width: 420px) {
+.tool--meta {
+  width: 48px;
+  height: 48px;
+  color: #6d655c;
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(42, 38, 34, 0.45);
+}
+
+.confirm {
+  width: min(100%, 360px);
+  padding: 22px 20px 18px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.confirm__title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.confirm__message {
+  margin: 0 0 18px;
+  line-height: 1.45;
+  color: #5c554c;
+}
+
+.confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirm__btn {
+  width: auto;
+  min-width: 104px;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.confirm__btn--danger {
+  background: var(--accent);
+  color: #fff;
+}
+
+.grid-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+  padding-top: max(8px, env(safe-area-inset-top));
+}
+
+.grid-screen__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.grid-screen__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.letter-grid {
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+  overflow: auto;
+  flex: 1;
+}
+
+.letter-cell {
+  position: relative;
+  aspect-ratio: 1.31;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(42, 38, 34, 0.12);
+}
+
+.letter-cell.is-current {
+  box-shadow: 0 0 0 3px var(--paper), 0 0 0 6px var(--accent);
+}
+
+.letter-cell__thumb,
+.letter-cell__paint {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* ---------- celulares (incl. Pixel 9 Pro XL ~448px): dock em duas linhas ---------- */
+
+@media (max-width: 480px) {
   .tools {
     gap: 6px;
   }
@@ -339,6 +459,16 @@ body {
 
   .dock__sep {
     display: none;
+  }
+
+  .dock__row--meta {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
+  .tool--meta {
+    width: 44px;
+    height: 44px;
   }
 }
 
