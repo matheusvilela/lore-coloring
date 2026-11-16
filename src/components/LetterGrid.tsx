@@ -27,14 +27,15 @@ export function LetterGrid({
 
     const load = async () => {
       const next: Record<string, string> = {};
-      for (const letter of LETTERS) {
-        if (!painted.has(letter)) continue;
-        const blob = await getPaint(letter);
-        if (!blob) continue;
-        const url = URL.createObjectURL(blob);
-        objectUrls.current.push(url);
-        next[letter] = url;
-      }
+      await Promise.all(
+        LETTERS.map(async (letter) => {
+          const blob = await getPaint(letter);
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          objectUrls.current.push(url);
+          next[letter] = url;
+        }),
+      );
       if (alive) setPreviews(next);
     };
 
@@ -75,12 +76,16 @@ export function LetterGrid({
                 aria-current={letter === current ? 'true' : undefined}
                 onClick={() => onPick(letter)}
               >
-                <img className="letter-cell__thumb" src={assetUrl(letter, 'thumb.webp')} alt="" />
                 {previews[letter] ? (
-                  <img className="letter-cell__paint" src={previews[letter]} alt="" />
-                ) : null}
+                  <>
+                    <img className="letter-cell__paint" src={previews[letter]} alt="" />
+                    <img className="letter-cell__ink" src={assetUrl(letter, 'ink.png')} alt="" />
+                  </>
+                ) : (
+                  <img className="letter-cell__thumb" src={assetUrl(letter, 'thumb.webp')} alt="" />
+                )}
               </button>
-              {painted.has(letter) ? (
+              {previews[letter] || painted.has(letter) ? (
                 <button
                   type="button"
                   className="btn letter-cell__clear"

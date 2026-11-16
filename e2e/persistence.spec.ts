@@ -70,14 +70,15 @@ test('na grade o contorno da letra fica acima da pintura', async ({ page }) => {
   await expect(cell.locator('.letter-cell__paint')).toBeVisible();
 
   const layers = await cell.evaluate(() => {
-    const thumb = document.querySelector('.letter-cell__thumb')!;
+    const ink = document.querySelector('.letter-cell__ink')!;
     const paint = document.querySelector('.letter-cell__paint')!;
     return {
-      thumbZ: getComputedStyle(thumb).zIndex,
+      inkZ: getComputedStyle(ink).zIndex,
       paintZ: getComputedStyle(paint).zIndex,
     };
   });
-  expect(Number(layers.thumbZ)).toBeGreaterThan(Number(layers.paintZ));
+  expect(Number(layers.inkZ)).toBeGreaterThan(Number(layers.paintZ));
+  await expect(cell.locator('.letter-cell__ink')).toBeVisible();
 });
 
 test('limpar letra na grade apaga só aquela célula', async ({ page }) => {

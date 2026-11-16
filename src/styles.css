@@ -484,7 +484,8 @@ body {
 }
 
 .letter-cell__thumb,
-.letter-cell__paint {
+.letter-cell__paint,
+.letter-cell__ink {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -493,12 +494,12 @@ body {
   pointer-events: none;
 }
 
-/* a tinta fica por baixo para a letra continuar legível com fundo cheio */
 .letter-cell__paint {
   z-index: 0;
 }
 
-.letter-cell__thumb {
+/* tinta transparente por cima da pintura (thumb.webp tem fundo branco opaco) */
+.letter-cell__ink {
   z-index: 1;
 }
 
