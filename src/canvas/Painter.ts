@@ -31,9 +31,13 @@ type Command = StrokeCommand | EraseCommand | FillCommand | BitmapCommand;
 
 type Box = { x0: number; y0: number; x1: number; y1: number };
 
+type LetterSession = { commands: Command[]; redo: Command[] };
+
+export type HistoryState = { canUndo: boolean; canRedo: boolean };
+
 export type PainterEvents = {
-  /** Chamado quando o histórico muda (habilita/desabilita o desfazer). */
-  onHistoryChange?: (canUndo: boolean) => void;
+  /** Chamado quando o histórico muda (habilita/desabilita desfazer e refazer). */
+  onHistoryChange?: (state: HistoryState) => void;
   /** Eventos de domínio para o som futuro (D10). */
   onAction?: (action: 'stroke' | 'erase' | 'fill') => void;
   /** Camada de cor alterada (autosave). */
@@ -61,6 +65,7 @@ export class Painter {
   private readonly events: PainterEvents;
 
   private commands: Command[] = [];
+  private redoCommands: Command[] = [];
   private current: StrokeCommand | EraseCommand | null = null;
 
   private tool: Tool;
@@ -86,8 +91,8 @@ export class Painter {
   private loadToken = 0;
   private destroyed = false;
 
-  /** Pilhas de desfazer por letra nesta visita (troca A→B→A). */
-  private readonly sessions = new Map<string, Command[]>();
+  /** Pilhas de desfazer/refazer por letra nesta visita (troca A→B→A). */
+  private readonly sessions = new Map<string, LetterSession>();
   /** Letra cuja arte já terminou de carregar na tela. */
   private settledLetter: string | null = null;
 
@@ -133,8 +138,9 @@ export class Painter {
     this.commitInProgressGesture();
     const outgoing = this.settledLetter;
     if (outgoing !== null) {
-      this.sessions.set(outgoing, this.commands);
+      this.sessions.set(outgoing, { commands: this.commands, redo: this.redoCommands });
       this.commands = [];
+      this.redoCommands = [];
     }
     this.settledLetter = null;
     const token = ++this.loadToken;
@@ -150,9 +156,8 @@ export class Painter {
   discardSession(letter: string): void {
     const parked = this.sessions.get(letter);
     if (!parked) return;
-    for (const cmd of parked) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    this.closeBitmaps(parked.commands);
+    this.closeBitmaps(parked.redo);
     this.sessions.delete(letter);
   }
 
@@ -175,7 +180,9 @@ export class Painter {
 
     const sessionRestored = this.sessions.has(letter);
     if (sessionRestored) {
-      this.commands = this.sessions.get(letter)!;
+      const parked = this.sessions.get(letter)!;
+      this.commands = parked.commands;
+      this.redoCommands = parked.redo;
       this.sessions.delete(letter);
       this.current = null;
       if (this.frame) {
@@ -195,8 +202,18 @@ export class Painter {
 
   undo(): boolean {
     if (this.commands.length === 0) return false;
-    const removed = this.commands.pop();
-    if (removed?.kind === 'bitmap') removed.bitmap.close();
+    const removed = this.commands.pop()!;
+    this.redoCommands.push(removed);
+    this.repaint();
+    this.emitHistory();
+    this.emitPaintDirty();
+    return true;
+  }
+
+  redo(): boolean {
+    if (this.redoCommands.length === 0) return false;
+    const restored = this.redoCommands.pop()!;
+    this.commands.push(restored);
     this.repaint();
     this.emitHistory();
     this.emitPaintDirty();
@@ -246,9 +263,8 @@ export class Painter {
   async restorePaint(blob: Blob, token: number): Promise<void> {
     if (this.destroyed || token !== this.loadToken) return;
 
-    for (const cmd of this.commands) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    this.closeBitmaps(this.commands);
+    this.clearRedoStack();
     this.commands = [];
     this.current = null;
     if (this.frame) {
@@ -278,9 +294,8 @@ export class Painter {
     this.destroyed = true;
     if (this.frame) cancelAnimationFrame(this.frame);
     this.discardAllSessions();
-    for (const cmd of this.commands) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    this.closeBitmaps(this.commands);
+    this.clearRedoStack();
     this.sheet.removeEventListener('pointerdown', this.onPointerDown);
     this.sheet.removeEventListener('pointermove', this.onPointerMove);
     this.sheet.removeEventListener('pointerup', this.onPointerUp);
@@ -425,7 +440,7 @@ export class Painter {
     if (region === INK_REGION) return false; // tocou na linha preta
 
     const cmd: FillCommand = { kind: 'fill', color: this.color, region };
-    this.commands.push(cmd);
+    this.appendCommand(cmd);
     this.applyFill(this.pctx, cmd);
     this.emitHistory();
     this.emitPaintDirty();
@@ -540,9 +555,8 @@ export class Painter {
   }
 
   private reset(): void {
-    for (const cmd of this.commands) {
-      if (cmd.kind === 'bitmap') cmd.bitmap.close();
-    }
+    this.closeBitmaps(this.commands);
+    this.clearRedoStack();
     this.commands = [];
     this.current = null;
     if (this.frame) {
@@ -555,7 +569,26 @@ export class Painter {
   }
 
   private emitHistory(): void {
-    this.events.onHistoryChange?.(this.commands.length > 0);
+    this.events.onHistoryChange?.({
+      canUndo: this.commands.length > 0,
+      canRedo: this.redoCommands.length > 0,
+    });
+  }
+
+  private closeBitmaps(stack: Command[]): void {
+    for (const cmd of stack) {
+      if (cmd.kind === 'bitmap') cmd.bitmap.close();
+    }
+  }
+
+  private clearRedoStack(): void {
+    this.closeBitmaps(this.redoCommands);
+    this.redoCommands = [];
+  }
+
+  private appendCommand(command: Command): void {
+    this.clearRedoStack();
+    this.commands.push(command);
   }
 
   private emitPaintDirty(): void {
@@ -594,9 +627,12 @@ export class Painter {
     }
     this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    this.commands.push(command);
+    this.appendCommand(command);
     if (command.kind === 'erase') this.repaint();
     else this.paintCommand(this.pctx, command);
+    this.emitHistory();
+    this.emitPaintDirty();
+    this.events.onAction?.(command.kind);
   }
 
   /* ---------- eventos de ponteiro ---------- */
@@ -689,7 +725,7 @@ export class Painter {
     }
     this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    this.commands.push(command);
+    this.appendCommand(command);
     if (command.kind === 'erase') this.repaint();
     else this.paintCommand(this.pctx, command);
 
