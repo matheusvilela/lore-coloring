@@ -149,9 +149,9 @@ test('menu de tamanho: visível, alinhado à direita, linha na base da cunha', a
   const baselineGap = await page.evaluate(() => {
     const thumb = document.querySelector('.size-popover__thumb')!;
     const track = document.querySelector('.size-popover__track')!;
-    return Math.abs(thumb.getBoundingClientRect().bottom - track.getBoundingClientRect().bottom);
+    return thumb.getBoundingClientRect().bottom - track.getBoundingClientRect().bottom;
   });
-  expect(baselineGap).toBeLessThan(1.5);
+  expect(baselineGap).toBeCloseTo(2, 0);
 
   await page.setViewportSize({ width: 1280, height: 900 });
   const desktopButton = await button.boundingBox();

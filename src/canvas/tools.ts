@@ -13,7 +13,7 @@ const SIZE_RANGE: Record<Tool, readonly [number, number] | null> = {
   move: null,
 };
 
-const POPOVER_THUMB_H = [6, 36] as const;
+const POPOVER_THUMB_H = [6, 38] as const;
 
 export function resolveSize(tool: Tool, sizeT: number): number {
   const range = SIZE_RANGE[tool];
@@ -22,7 +22,7 @@ export function resolveSize(tool: Tool, sizeT: number): number {
   return Math.round(range[0] + t * (range[1] - range[0]));
 }
 
-/** Altura da marca no popover de tamanho (6–36 px), acompanhando a espessura. */
+/** Altura da marca no popover de tamanho (6–38 px), acompanhando a espessura. */
 export function popoverThumbHeight(tool: Tool, sizeT: number): number {
   const range = SIZE_RANGE[tool];
   if (!range) return POPOVER_THUMB_H[0];
