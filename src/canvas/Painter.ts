@@ -72,6 +72,12 @@ export class Painter {
   private scratchCtx: CanvasRenderingContext2D | null = null;
 
   private activePointer: number | null = null;
+  /**
+   * Balde: o preenchimento só acontece ao soltar o dedo. Assim a pinça — que
+   * começa com um dedo encostado na folha — cancela o toque em vez de pintar
+   * uma região inteira sem querer.
+   */
+  private pendingFill: Point | null = null;
   private frame = 0;
   private loadToken = 0;
   private destroyed = false;
@@ -96,7 +102,7 @@ export class Painter {
     this.ink.addEventListener('pointerdown', this.onPointerDown);
     this.ink.addEventListener('pointermove', this.onPointerMove);
     this.ink.addEventListener('pointerup', this.onPointerUp);
-    this.ink.addEventListener('pointercancel', this.onPointerUp);
+    this.ink.addEventListener('pointercancel', this.onPointerCancel);
     this.ink.addEventListener('contextmenu', prevent);
   }
 
@@ -139,6 +145,28 @@ export class Painter {
     this.reset();
   }
 
+  /**
+   * Aborta o traço em andamento sem entrar no histórico.
+   * Usado quando o segundo dedo encosta na tela: o gesto vira pinça e o
+   * risco acidental do primeiro dedo precisa desaparecer.
+   */
+  cancelStroke(): void {
+    const id = this.activePointer;
+    if (id === null) return;
+
+    this.activePointer = null;
+    this.current = null;
+    this.pendingFill = null;
+    if (this.ink.hasPointerCapture(id)) this.ink.releasePointerCapture(id);
+    if (this.frame) {
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+    }
+    // a borracha desenha direto na camada de pintura: refazer apaga o preview
+    this.repaint();
+    this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  }
+
   /** Há pintura na letra atual? (usado pela persistência da Etapa 4) */
   hasPaint(): boolean {
     return this.commands.length > 0;
@@ -150,7 +178,7 @@ export class Painter {
     this.ink.removeEventListener('pointerdown', this.onPointerDown);
     this.ink.removeEventListener('pointermove', this.onPointerMove);
     this.ink.removeEventListener('pointerup', this.onPointerUp);
-    this.ink.removeEventListener('pointercancel', this.onPointerUp);
+    this.ink.removeEventListener('pointercancel', this.onPointerCancel);
     this.ink.removeEventListener('contextmenu', prevent);
     for (const c of [this.paint, this.wet, this.ink]) c.remove();
   }
@@ -428,7 +456,10 @@ export class Painter {
     const point = this.toLocal(event);
 
     if (this.tool === 'bucket') {
-      this.fillAt(point);
+      // pinta ao soltar: se um segundo dedo chegar, vira pinça e o toque é cancelado
+      this.activePointer = event.pointerId;
+      this.ink.setPointerCapture(event.pointerId);
+      this.pendingFill = point;
       return;
     }
 
@@ -477,7 +508,21 @@ export class Painter {
   };
 
   private onPointerUp = (event: PointerEvent): void => {
-    if (this.activePointer !== event.pointerId || !this.current) return;
+    if (this.activePointer !== event.pointerId) return;
+
+    if (this.pendingFill) {
+      const point = this.pendingFill;
+      this.pendingFill = null;
+      this.activePointer = null;
+      if (this.ink.hasPointerCapture(event.pointerId)) this.ink.releasePointerCapture(event.pointerId);
+      this.fillAt(point);
+      return;
+    }
+
+    if (!this.current) {
+      this.activePointer = null;
+      return;
+    }
     const command = this.current;
 
     this.activePointer = null;
@@ -496,6 +541,18 @@ export class Painter {
 
     this.emitHistory();
     this.events.onAction?.(command.kind);
+  };
+
+  /** Cancelamento (troca de orientação, gesto do sistema): balde pendente não pinta. */
+  private onPointerCancel = (event: PointerEvent): void => {
+    if (this.activePointer !== event.pointerId) return;
+    if (this.pendingFill) {
+      this.pendingFill = null;
+      this.activePointer = null;
+      if (this.ink.hasPointerCapture(event.pointerId)) this.ink.releasePointerCapture(event.pointerId);
+      return;
+    }
+    this.onPointerUp(event);
   };
 }
 

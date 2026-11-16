@@ -49,16 +49,16 @@ test('pinta, desfaz e navega entre as letras', async ({ page }) => {
   await expect(undo).toBeDisabled();
 
   // navegação
-  await expect(page.locator('.letter')).toHaveText('A');
+  await expect(page.locator('.letter-status')).toHaveText('A');
   await page.getByRole('button', { name: 'Próxima letra' }).click();
-  await expect(page.locator('.letter')).toHaveText('B');
+  await expect(page.locator('.letter-status')).toHaveText('B');
   await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
 
   // ao trocar de letra a pintura some (cada letra tem sua tela)
   expect(await paintPixels(page)).toBe(0);
 
   await page.getByRole('button', { name: 'Letra anterior' }).click();
-  await expect(page.locator('.letter')).toHaveText('A');
+  await expect(page.locator('.letter-status')).toHaveText('A');
 });
 
 test('a tinta nunca é alterada pela pintura', async ({ page }) => {

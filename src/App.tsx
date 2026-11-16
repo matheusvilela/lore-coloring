@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CANVAS_H, CANVAS_W, Painter } from './canvas/Painter';
 import type { SizeIndex, Tool } from './canvas/tools';
+import { usePinchZoom } from './canvas/zoom';
 import { Dock } from './components/Dock';
 import { LETTERS, assetUrl } from './data/letters';
 import { DEFAULT_COLOR } from './data/palette';
@@ -17,6 +18,7 @@ function preload(letter: string | undefined): void {
 
 export default function App() {
   const stageRef = useRef<HTMLElement | null>(null);
+  const pagerRef = useRef<HTMLElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const painterRef = useRef<Painter | null>(null);
 
@@ -29,6 +31,12 @@ export default function App() {
   const [sizeIndex, setSizeIndex] = useState<SizeIndex>(1);
 
   const letter = LETTERS[index];
+
+  const cancelStroke = useCallback(() => {
+    painterRef.current?.cancelStroke();
+  }, []);
+
+  const { reset: resetZoom } = usePinchZoom(stageRef, sheetRef, cancelStroke);
 
   // o motor vive fora do React; só recriamos se o container mudar
   useEffect(() => {
@@ -48,27 +56,38 @@ export default function App() {
   // ajusta a folha ao espaço disponível, preservando a proporção do canvas
   useLayoutEffect(() => {
     const stage = stageRef.current;
-    if (!stage) return;
+    const pager = pagerRef.current;
+    if (!stage || !pager) return;
 
     const fit = () => {
-      // clientWidth/Height já excluem borda; o padding tem de sair da conta,
-      // senão a folha fica maior que a área útil e vaza pela direita.
+      // clientWidth/Height já excluem borda, mas não o padding: nas telas
+      // largas ele reserva a canaleta das setas e precisa sair da conta.
       const style = getComputedStyle(stage);
       const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+
+      // no celular as setas ficam numa faixa abaixo da folha e comem altura;
+      // nas telas largas elas vão para as canaletas (position: absolute) e não custam nada
+      const pagerOffset =
+        getComputedStyle(pager).position === 'absolute'
+          ? 0
+          : pager.offsetHeight + (parseFloat(style.rowGap) || 0);
+
       const width = stage.clientWidth - padX;
-      const height = stage.clientHeight - padY;
+      const height = stage.clientHeight - padY - pagerOffset;
       if (width <= 0 || height <= 0) return;
 
       const scale = Math.min(width / CANVAS_W, height / CANVAS_H);
       setSize({ w: Math.floor(CANVAS_W * scale), h: Math.floor(CANVAS_H * scale) });
+      // a geometria de encaixe mudou: um zoom antigo apontaria para o lugar errado
+      resetZoom();
     };
 
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, []);
+  }, [resetZoom]);
 
   useEffect(() => {
     painterRef.current?.setTool({ tool, color, sizeIndex });
@@ -79,11 +98,12 @@ export default function App() {
     if (!painter) return;
 
     setCanUndo(false);
+    resetZoom();
     void painter.loadLetter(letter).then(() => {
       preload(LETTERS[index + 1]);
       preload(LETTERS[index - 1]);
     });
-  }, [letter, index]);
+  }, [letter, index, resetZoom]);
 
   const go = useCallback((delta: number) => {
     setIndex((current) => Math.min(LETTERS.length - 1, Math.max(0, current + delta)));
@@ -101,59 +121,65 @@ export default function App() {
         undo();
         return;
       }
+      if (event.key === '0') resetZoom();
       if (event.key === 'ArrowLeft') go(-1);
       if (event.key === 'ArrowRight') go(1);
     };
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [go, undo]);
+  }, [go, resetZoom, undo]);
 
   return (
     <div className="app">
-      <header className="topbar">
-        <button
-          className="btn"
-          onClick={() => go(-1)}
-          disabled={index === 0}
-          aria-label="Letra anterior"
-        >
-          <Arrow direction="left" />
-        </button>
-
-        <div className="letter" aria-live="polite">
-          {letter}
-        </div>
-
-        <button
-          className="btn"
-          onClick={() => go(1)}
-          disabled={index === LETTERS.length - 1}
-          aria-label="Próxima letra"
-        >
-          <Arrow direction="right" />
-        </button>
-
-        <button className="btn btn--ghost" onClick={undo} disabled={!canUndo} aria-label="Desfazer">
-          <UndoIcon />
-        </button>
-      </header>
+      {/* a letra não aparece mais no layout, mas continua anunciada para leitores de tela */}
+      <p className="letter-status" role="status" aria-live="polite">
+        {letter}
+      </p>
 
       <main className="stage" ref={stageRef}>
         <div
-          className="sheet"
-          ref={sheetRef}
+          className="sheet-wrap"
           style={{ width: size.w || undefined, height: size.h || undefined }}
-        />
+        >
+          <div
+            className="sheet"
+            ref={sheetRef}
+            data-letter={letter}
+            style={{ width: size.w || undefined, height: size.h || undefined }}
+          />
+        </div>
+
+        <nav className="pager" ref={pagerRef} aria-label="Trocar de letra">
+          <button
+            className="btn nav"
+            onClick={() => go(-1)}
+            disabled={index === 0}
+            aria-label="Letra anterior"
+          >
+            <Arrow direction="left" />
+          </button>
+
+          <button
+            className="btn nav"
+            onClick={() => go(1)}
+            disabled={index === LETTERS.length - 1}
+            aria-label="Próxima letra"
+          >
+            <Arrow direction="right" />
+          </button>
+        </nav>
       </main>
 
       <Dock
         tool={tool}
         color={color}
         sizeIndex={sizeIndex}
+        canUndo={canUndo}
         onTool={setTool}
         onColor={setColor}
         onSize={setSizeIndex}
+        onUndo={undo}
       />
     </div>
   );
@@ -167,21 +193,6 @@ function Arrow({ direction }: { direction: 'left' | 'right' }) {
         fill="none"
         stroke="currentColor"
         strokeWidth="2.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function UndoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-      <path
-        d="M9 7 H6 M6 7 V4 M6 7 L9.5 10.5 M6 7 H14 A5 5 0 0 1 14 17 H10"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />

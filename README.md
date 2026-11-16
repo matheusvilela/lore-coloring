@@ -38,6 +38,13 @@ Para abrir no celular na mesma rede: `npm run dev -- --host` e use o endereço
 Antes de `dev` e `build` roda `scripts/preflight.mjs`, que falha com mensagem
 clara se o Node estiver fora da faixa do Vite 8 ou se faltar `npm ci`.
 
+### Controles
+
+- **Dedo**: pinta com a ferramenta escolhida; **pinça com dois dedos** amplia
+  (1×–4×) e arrasta a folha. O primeiro dedo de uma pinça não deixa risco.
+- **Teclado**: `←`/`→` trocam de letra, `Ctrl/Cmd+Z` desfaz, `0` volta o zoom.
+- **Trackpad**: pinça (equivale a `ctrl` + roda) amplia a folha.
+
 ### Testes
 
 ```sh

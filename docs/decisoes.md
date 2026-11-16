@@ -1,6 +1,6 @@
 # Decisões — App de colorir "Alfabeto Lore"
 
-**Status:** aprovado (MVP) · **Data:** 15/11/2026 · **Rev.:** 5 · **Alvo:** celular, tablet e desktop (mesma build)
+**Status:** aprovado (MVP) · **Data:** 16/11/2026 · **Rev.:** 6 · **Alvo:** celular, tablet e desktop (mesma build)
 
 ---
 
@@ -106,6 +106,8 @@ Canvas lógico **2048 × 1562** (mesma proporção 1,31:1 da arte), escalado par
 
 Motivo: o resultado fica idêntico em qualquer aparelho, o custo do balde é previsível, a textura do giz tem escala consistente e o PNG salvo não depende da tela em que foi pintado. A tinta é desenhada de um raster de mesma resolução (ou do SVG), então só a camada de cor pode ficar levemente suave em telas 4K — imperceptível em pintura.
 
+**Recorte por letra: rejeitado em 16/11/2026.** A ideia era dar a cada letra um canvas do tamanho do próprio bbox (ganho medido de **2,75× de área mediana no celular**, 4,6× na letra E). Foi descartada porque: (a) a folha mudaria de forma a cada letra, (b) M/X/W não cresceriam de qualquer jeito (já encostam na largura em retrato), (c) quebraria a garantia de coordenadas iguais de D7 e a persistência simples de D8. No lugar dela entrou **pinça/zoom (D15)**, que dá o mesmo controle de perto sem tirar a régua única do canvas.
+
 ### D8 · Persistência: **IndexedDB** (não `localStorage`)
 
 - `localStorage` é síncrono, só string e tem ~5 MB — não cabe bitmap e trava a thread principal.
@@ -143,11 +145,12 @@ lore/
 ├─ public/letras/{A..Z}/       # gerado (ink.svg, ink.png, region.png, thumb.webp)
 ├─ e2e/                        # Playwright (studio + ferramentas)
 ├─ src/
-│  ├─ App.tsx                  # studio: pager, palco, atalhos (a grade entra na Etapa 4)
+│  ├─ App.tsx                  # studio: palco, pager, zoom, atalhos (a grade entra na Etapa 4)
 │  ├─ canvas/
 │  │  ├─ Painter.ts            # motor: camadas, comandos, undo, balde, borracha
 │  │  ├─ geometry.ts           # traço suavizado (vivo e replay)
 │  │  ├─ texture.ts            # ladrilho determinístico do giz de cera
+│  │  ├─ zoom.ts               # pinça/roda: transformação fora do React (D15)
 │  │  └─ tools.ts              # ferramentas e tabela de espessuras
 │  ├─ components/Dock.tsx      # ferramentas, tamanhos, paleta
 │  ├─ data/{letters.ts,palette.ts}
@@ -164,13 +167,29 @@ Previsto para as próximas etapas: `storage/db.ts` (IndexedDB), `components/Lett
 
 ### D14 · Composição da tela (uma build só, três faixas)
 
-Ordem vertical: **barra de navegação (‹ letra › desfazer) → palco → dock (ferramentas + tamanhos + cores)**. O dock é o que resolve o desperdício de altura em retrato: a arte é paisagem (1,31:1) e fica limitada pela largura, então o espaço que sobra vai para os controles, não para margem vazia.
+Ordem vertical: **palco (folha + setas) → dock (ferramentas + tamanhos + desfazer + cores)**. Não existe mais barra de topo: o nome da letra saiu do layout (fica só num `<p role="status">` invisível, para leitores de tela) porque o desenho já diz qual letra é. O espaço liberado vai para a folha.
 
-- **Paleta**: `6 × 4` no celular em retrato (24 divide certo; `auto-fit` dava 7 colunas com 3 sobrando na última linha) e `12 × 2` a partir de 760 px.
-- **Celular deitado (altura ≤ 560 px)**: a altura é o recurso escasso, então a paleta vira **fita horizontal com rolagem** (swatches de 40 px) e as ferramentas encolhem. Decisão explícita: rolagem lateral só nesse caso; em telas altas as 24 cores ficam todas visíveis, como manda A.3.
-- **Alvos de toque**: swatch ≥ 44 px, ferramenta ≥ 44 px, tamanho ≥ 34 px com halo no ativo (o dedo de uma criança erra muito).
+- **Setas**: embaixo da folha, alinhadas às bordas dela, no celular em retrato. Em telas com canaleta (≥ 760 px **e** proporção ≥ 4:3 — desktop, tablet deitado, celular deitado) as setas vão para as **laterais do board**, no centro vertical, sem custar largura da folha. Elas ficam acima da folha no empilhamento (`z-index`), então continuam clicáveis mesmo com zoom.
+- **Desfazer**: dentro do dock, à direita dos tamanhos (divisor fino entre os dois grupos) — sai da barra de topo. Continua com `Ctrl/Cmd+Z`.
+- **Paleta**: `8 × 3` no celular em retrato (24 divide certo; o dock cai de 241 px para 132 px de paleta) e `12 × 2` a partir de 760 px.
+- **Celular deitado (altura ≤ 560 px)**: a altura é o recurso escasso, então a paleta vira **fita horizontal com rolagem** (swatches de 40 px, 8 px de padding para o anel da cor ativa não ser cortado) e as ferramentas encolhem.
+- **Celular estreito (≤ 420 px)**: as quatro ferramentas ocupam a primeira linha; tamanhos + desfazer ficam na segunda.
+- **Alvos de toque**: swatch ~39 px (8×3 no celular; antes 54 px em 6×4), ferramenta ≥ 44 px, tamanho ≥ 34 px com halo no ativo.
 - **Sem texto na UI**: só ícones e cor. Os rótulos existem em `aria-label` (pt-BR) para leitores de tela e para os testes.
+- **Ícones**: pincel = *brush* do Bootstrap Icons, borracha = `eraser` do Lucide, desfazer = `undo-2` do Lucide, balde = o desenho original (aprovado). Giz de cera é **desenhado no projeto** (nenhuma biblioteca livre tem giz legível a 23 px): corpo deitado, faixa da embalagem e duas listras na ponta, traço 1,8 num viewBox 24.
 - **Cor ativa** aparece com anel de 3 px de papel + 3 px de tinta; **ferramenta ativa** com anel interno na cor de destaque; **tamanho ativo** com fundo `#e7e2d8`.
+
+### D15 · Zoom por pinça (entra no MVP)
+
+Motivo: com o canvas fixo (D7), a folha em retrato é limitada pela largura — 370 × 282 num iPhone de 390 — e a letra não cresce mais que isso. A pinça resolve o "quero pintar o olho da letra" sem mudar a régua do canvas.
+
+- **Gestos**: dois dedos ampliam (1× a **4×**) e arrastam ao mesmo tempo (o ponto entre os dedos fica preso). O primeiro dedo começa um traço; quando o segundo encosta, o traço é **abortado** (`Painter.cancelStroke()`) e vira gesto — não fica risco acidental. Soltar abaixo de 1,03× volta ao encaixe.
+- **Balde**: passou a preencher **ao soltar** o dedo (antes era no toque, para parecer instantâneo). Sem isso a pinça com o balde ativo pintaria uma região inteira ao encostar o primeiro dedo. `pointercancel` descarta o toque pendente.
+- **Desktop**: a pinça do trackpad chega como `wheel` com `ctrl` e é tratada igual (zoom ancorado no ponteiro). Tecla `0` volta ao encaixe.
+- **Zera sozinho** ao trocar de letra e quando o palco muda de tamanho (rotação, resize), porque a geometria de encaixe mudou.
+- **Implementação**: `src/canvas/zoom.ts`, transformação aplicada direto no DOM (`translate3d + scale`, `transform-origin: 0 0`), fora do ciclo do React — nenhum re-render por `pointermove` (regra de ouro D12). O `Painter` não muda: ele converte o ponteiro por `getBoundingClientRect()`, que já vem escalado.
+- **Limite**: as camadas têm 2048 px de largura; a 4× num celular DPR 2 a tinta é ampliada ~1,4× além do raster, então fica levemente suave. Aceito (é traço de caneta, não texto).
+- A folha é recortada pelo palco (`overflow: hidden`): o zoom não invade o dock.
 
 ---
 
@@ -183,7 +202,7 @@ Ordem vertical: **barra de navegação (‹ letra › desfazer) → palco → do
 | Flutter Web / Godot Web / Unity WebGL | O motor de pintura seria custom de qualquer forma; bundle 1,5–30 MB, pior integração web/iOS |
 | Oracle Cloud Free Tier | Zero backend necessário; custo de operação sem benefício (D11) |
 | Konva / Fabric.js / Paper.js | Modelo de objetos vetoriais atrapalha borracha, textura e balde por píxel |
-| Recortar cada letra no próprio bbox | As letras ficariam com tamanhos inconsistentes entre páginas; usar bbox compartilhado |
+| Recortar cada letra no próprio bbox (canvas por letra) | Ganho real de 2,75× de área mediana no celular, mas a folha mudaria de forma a cada letra, M/X/W não cresceriam e quebraria a régua única de D7 / a persistência de D8. Trocado por zoom (D15) |
 | Upscale 4× em vez de vetorizar | Escolhemos vetorizar (D4); o upscale fica como plano B se o trace degradar |
 
 ---
@@ -238,7 +257,7 @@ Ordem vertical: **barra de navegação (‹ letra › desfazer) → palco → do
 
 1. **Layout da paleta no celular**: grade fluida 4×6 (proposta em A.3) vs. duas linhas com scroll horizontal. Testar com o dedo antes de fechar.
 2. **Paleta de 24 pode ficar apagada.** Os 8 tons extras de alta saturação que eu havia proposto (magenta `#E64980`, ciano `#22D3EE`, roxo vivo `#7048E8`, laranja-neon `#FF922B`, dourado `#FAB005`, rosa-chiclete `#FF8FCF`, marrom `#8B5E34`, cinza-claro `#CED4DA`) foram retirados junto com a mudança de ordem. Reavaliar depois do primeiro teste com a criança.
-3. **Retrato de celular desperdiça altura.** A arte é paisagem (1,31:1), então em retrato a folha é limitada pela largura (366 × 279 num iPhone de 390). **Parcialmente resolvido na Etapa 3:** o dock (ferramentas + paleta 6×4) ocupa a parte de baixo. Sobram ~100 px de folga entre a arte e o dock; se ainda incomodar no teste com a criança, as saídas são (a) pinça para ampliar a letra, (b) gaveta recolhível de ferramentas. Não vale mexer na arte nem em canvas por letra: o canvas fixo de D7 é o que garante coordenadas iguais em qualquer tela e a persistência simples.
+3. **Retrato de celular: a letra em 100% continua pequena.** ~~Resolvido~~ **Resolvido por outro caminho (rev. 6).** A arte é paisagem (1,31:1), então a folha em retrato é limitada pela largura: 370 × 282 num iPhone de 390, e no tamanho de encaixe ela não cresce mais. Tentei canvas por letra (ganho medido de 2,75× de área mediana) e **descartei** pelos motivos de D7. A solução adotada foi **pinça/zoom até 4×** (D15), que dá o mesmo "pintar o olho da letra" sem mudar a régua. A folga vertical que sobrou entre a folha e o dock não é mais desperdício: virou faixa das setas no celular. Continua em aberto, se o teste com a criança pedir, **abrir já ampliado no bbox da letra** ao trocar de página (zoom inicial em vez de 1×).
 4. **Letra apagada até o fim conta como "pintada".** O histórico tem comandos de borracha, então `hasPaint()` continua verdadeiro com a tela em branco. Na Etapa 4 isso apareceria na grade como uma miniatura em branco. Decidir lá: salvar só se houver píxel não transparente (checagem barata no momento do save) e, se não houver, apagar o blob.
 
 ---
@@ -335,6 +354,22 @@ Dois ajustes que só apareceram olhando o print:
 
 1. `auto-fit`/`minmax(44px, 1fr)` na paleta dava **7 colunas** num iPhone de 390 px, deixando 3 swatches órfãos na última linha. Trocado por 6 colunas fixas (12 no desktop).
 2. O primeiro giz parecia **confete**: furos grandes e de alto contraste. Refeito com grão fino e denso + poucas falhas fundas (média de alfa foi de 219 para 238 de 255).
+
+### Resultado da revisão de layout (16/11/2026, rev. 6)
+
+Header removido, setas reposicionadas, undo no dock, paleta mais densa e zoom por pinça. O objetivo era dar mais espaço à letra sem abrir mão do canvas fixo de D7.
+
+| Tela | Folha antes | Folha depois | Ganho de área |
+|---|---|---|---|
+| Celular 390 × 844 | 366 × 279 | **370 × 282** | +2% (limitada pela largura; o ganho real é o zoom) |
+| Desktop 1280 × 860 | 746 × 569 | **850 × 649** | **+30%** |
+| Celular deitado 844 × 390 | 293 × 224 | **346 × 264** | **+39%** |
+
+- **Onde o espaço saiu:** header (~56 px, devolvido ao palco), paleta 6×4 → 8×3 no celular (−109 px de dock) e setas na mesma faixa da folha no desktop/deitado (canaletas de 86 px, zero custo de altura).
+- **Onde o espaço foi:** folha (acima) e paleta com swatches de ~39 px no celular — ainda acima do alvo mínimo de toque para uma criança, mas menos folgado que os 54 px de antes; o teste com a criança decide se volta a 6×4.
+- **Zoom:** a 1× a tinta é reduzida ~2,8× (2048 px do canvas em 370 CSS px a DPR 2); a 4× ela é ampliada ~1,4× além do raster. Aceito (D15).
+- **Custo real do undo no dock:** no celular ele cria uma segunda linha curta (tamanhos + desfazer), então o dock ficou em 268 px — menor que os 317 px de antes, mas 58 px mais alto do que se o undo tivesse ido para a faixa das setas.
+- **Regressão pega pelo e2e:** com a folha ampliada, o canvas pintava por cima do pager e as setas deixavam de responder. Corrigido com `position: relative; z-index: 2` no pager.
 
 ### Etapa 4 · Persistência (1 dia)
 
