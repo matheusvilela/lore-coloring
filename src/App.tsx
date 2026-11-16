@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { CANVAS_H, CANVAS_W, Painter } from './canvas/Painter';
+import type { SizeIndex, Tool } from './canvas/tools';
+import { Dock } from './components/Dock';
 import { LETTERS, assetUrl } from './data/letters';
+import { DEFAULT_COLOR } from './data/palette';
 
 type Size = { w: number; h: number };
 
 function preload(letter: string | undefined): void {
   if (!letter) return;
-  const img = new Image();
-  img.src = assetUrl(letter, 'ink.png');
+  for (const file of ['ink.png', 'region.png']) {
+    const img = new Image();
+    img.src = assetUrl(letter, file);
+  }
 }
 
 export default function App() {
@@ -19,6 +24,10 @@ export default function App() {
   const [canUndo, setCanUndo] = useState(false);
   const [size, setSize] = useState<Size>({ w: 0, h: 0 });
 
+  const [tool, setTool] = useState<Tool>('brush');
+  const [color, setColor] = useState(DEFAULT_COLOR);
+  const [sizeIndex, setSizeIndex] = useState<SizeIndex>(1);
+
   const letter = LETTERS[index];
 
   // o motor vive fora do React; só recriamos se o container mudar
@@ -26,13 +35,14 @@ export default function App() {
     const sheet = sheetRef.current;
     if (!sheet) return;
 
-    const painter = new Painter(sheet, { onHistoryChange: setCanUndo });
+    const painter = new Painter(sheet, { onHistoryChange: setCanUndo }, { tool, color, sizeIndex });
     painterRef.current = painter;
 
     return () => {
       painter.destroy();
       painterRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ajusta a folha ao espaço disponível, preservando a proporção do canvas
@@ -59,6 +69,10 @@ export default function App() {
     observer.observe(stage);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    painterRef.current?.setTool({ tool, color, sizeIndex });
+  }, [tool, color, sizeIndex]);
 
   useEffect(() => {
     const painter = painterRef.current;
@@ -97,15 +111,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <main className="stage" ref={stageRef}>
-        <div
-          className="sheet"
-          ref={sheetRef}
-          style={{ width: size.w || undefined, height: size.h || undefined }}
-        />
-      </main>
-
-      <nav className="bar">
+      <header className="topbar">
         <button
           className="btn"
           onClick={() => go(-1)}
@@ -128,15 +134,27 @@ export default function App() {
           <Arrow direction="right" />
         </button>
 
-        <button
-          className="btn btn--ghost"
-          onClick={undo}
-          disabled={!canUndo}
-          aria-label="Desfazer"
-        >
+        <button className="btn btn--ghost" onClick={undo} disabled={!canUndo} aria-label="Desfazer">
           <UndoIcon />
         </button>
-      </nav>
+      </header>
+
+      <main className="stage" ref={stageRef}>
+        <div
+          className="sheet"
+          ref={sheetRef}
+          style={{ width: size.w || undefined, height: size.h || undefined }}
+        />
+      </main>
+
+      <Dock
+        tool={tool}
+        color={color}
+        sizeIndex={sizeIndex}
+        onTool={setTool}
+        onColor={setColor}
+        onSize={setSizeIndex}
+      />
     </div>
   );
 }

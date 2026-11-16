@@ -33,6 +33,56 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  height: 100dvh;
+}
+
+/* ---------- barra de navegação ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 10px 16px 2px;
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+
+.letter {
+  min-width: 3.2ch;
+  text-align: center;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.btn {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: 0;
+  border-radius: 19px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 3px 10px rgba(42, 38, 34, 0.12);
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.btn:disabled {
+  opacity: 0.28;
+}
+
+.btn--ghost {
+  background: transparent;
+  box-shadow: none;
+  color: #6d655c;
 }
 
 /* ---------- palco ---------- */
@@ -42,7 +92,7 @@ body {
   min-height: 0;
   display: grid;
   place-items: center;
-  padding: 12px;
+  padding: 10px 12px;
 }
 
 .sheet {
@@ -74,86 +124,237 @@ body {
   touch-action: none;
 }
 
-/* ---------- barra de controles ---------- */
+.sheet[data-tool='bucket'] .layer--ink {
+  cursor: copy;
+}
 
-.bar {
+.sheet[data-tool='eraser'] .layer--ink {
+  cursor: cell;
+}
+
+/* ---------- dock: ferramentas, tamanhos, cores ---------- */
+
+.dock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px calc(12px + env(safe-area-inset-bottom));
+}
+
+.dock__row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.letter {
-  min-width: 3.2ch;
-  text-align: center;
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  color: var(--accent);
+.tools {
+  display: flex;
+  gap: 8px;
 }
 
-.btn {
+.tool {
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 56px;
+  height: 56px;
   padding: 0;
   border: 0;
-  border-radius: 20px;
+  border-radius: 18px;
   background: #fff;
-  color: var(--ink);
+  color: #4a443d;
   box-shadow: 0 3px 10px rgba(42, 38, 34, 0.12);
-  transition: transform 0.08s ease, opacity 0.15s ease;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, color 0.12s ease;
 }
 
-.btn:active:not(:disabled) {
+.tool:active {
   transform: scale(0.94);
 }
 
-.btn:disabled {
-  opacity: 0.28;
+.tool.is-active {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 3px currentColor, 0 3px 10px rgba(42, 38, 34, 0.12);
 }
 
-.btn--ghost {
+.sizes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.size {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 13px;
   background: transparent;
-  box-shadow: none;
-  color: #6d655c;
+  color: #8a8178;
+  transition: color 0.12s ease, opacity 0.12s ease;
 }
 
-@media (min-width: 720px) {
-  .btn {
-    width: 68px;
-    height: 68px;
-  }
+.size__dot {
+  border-radius: 50%;
+  background: currentColor;
+}
 
+.size.is-active {
+  color: #3c3731;
+  background: #e7e2d8;
+}
+
+.size:disabled {
+  opacity: 0.3;
+}
+
+.palette {
+  display: grid;
+  /* 24 cores: 6 × 4 no celular (24 divide certo; 7 deixava 3 na última linha) */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.swatch {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 38%;
+  box-shadow: inset 0 0 0 1px rgba(42, 38, 34, 0.1);
+  transition: transform 0.08s ease, box-shadow 0.12s ease;
+}
+
+.swatch:active {
+  transform: scale(0.92);
+}
+
+.swatch.is-active {
+  box-shadow: 0 0 0 3px var(--paper), 0 0 0 6px var(--ink),
+    inset 0 0 0 1px rgba(42, 38, 34, 0.1);
+}
+
+/* ---------- telas largas ---------- */
+
+@media (min-width: 760px) {
   .letter {
     font-size: 40px;
   }
 
-  .bar {
-    gap: 20px;
+  .btn {
+    width: 64px;
+    height: 64px;
+  }
+
+  .palette {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
   }
 }
 
-/* no celular em paisagem a barra encurta para não roubar altura */
-@media (max-height: 460px) {
-  .stage {
-    padding: 6px;
+/* ---------- celulares estreitos: ferramentas e tamanhos numa linha só ---------- */
+
+@media (max-width: 420px) {
+  .dock__row {
+    gap: 10px;
   }
 
-  .btn {
-    width: 52px;
-    height: 52px;
+  .tools {
+    gap: 6px;
+  }
+
+  .tool {
+    width: 50px;
+    height: 50px;
     border-radius: 16px;
   }
 
-  .bar {
-    padding: 4px 12px calc(6px + env(safe-area-inset-bottom));
+  .sizes {
+    gap: 2px;
+  }
+
+  .size {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+}
+
+/* ---------- telas baixas (celular deitado): tudo compacto ---------- */
+
+@media (max-height: 560px) {
+  .topbar {
+    gap: 10px;
+    padding: 4px 10px 0;
+  }
+
+  .btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
   }
 
   .letter {
     font-size: 26px;
+  }
+
+  .stage {
+    padding: 6px 10px;
+  }
+
+  .dock {
+    gap: 6px;
+    padding: 2px 10px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .dock__row {
+    gap: 10px;
+  }
+
+  .tools {
+    gap: 6px;
+  }
+
+  .tool {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .tool svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .size {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* a altura é o recurso escasso: a paleta vira uma fita horizontal */
+  .palette {
+    display: flex;
+    max-width: none;
+    gap: 7px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 2px 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+
+  .palette::-webkit-scrollbar {
+    display: none;
+  }
+
+  .swatch {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
   }
 }

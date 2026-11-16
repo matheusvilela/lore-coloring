@@ -1,6 +1,6 @@
 # Decisões — App de colorir "Alfabeto Lore"
 
-**Status:** aprovado (MVP) · **Data:** 15/11/2026 · **Rev.:** 4 · **Alvo:** celular, tablet e desktop (mesma build)
+**Status:** aprovado (MVP) · **Data:** 15/11/2026 · **Rev.:** 5 · **Alvo:** celular, tablet e desktop (mesma build)
 
 ---
 
@@ -141,24 +141,36 @@ lore/
 ├─ assets-src/letras/          # PNGs originais
 ├─ scripts/build-assets.mjs    # vetoriza → rasteriza → region map → thumb
 ├─ public/letras/{A..Z}/       # gerado (ink.svg, ink.png, region.png, thumb.webp)
+├─ e2e/                        # Playwright (studio + ferramentas)
 ├─ src/
-│  ├─ App.tsx                  # rotas de tela: studio | grade
+│  ├─ App.tsx                  # studio: pager, palco, atalhos (a grade entra na Etapa 4)
 │  ├─ canvas/
-│  │  ├─ Painter.ts            # motor: camadas, loop, pointer handling
-│  │  ├─ brushes/{pincel,giz,balde,borracha}.ts
-│  │  └─ geometry.ts           # curvas, simplificação, dilatação
-│  ├─ state/store.ts           # ferramenta, cor, tamanho, letra, progresso
-│  ├─ storage/db.ts            # IndexedDB (idb), autosave, reset
-│  ├─ sound/                   # eventos + provider no-op
-│  ├─ ui/                      # Toolbar, Palette, Pager, LetterGrid, Confirm
-│  └─ data/letters.ts
+│  │  ├─ Painter.ts            # motor: camadas, comandos, undo, balde, borracha
+│  │  ├─ geometry.ts           # traço suavizado (vivo e replay)
+│  │  ├─ texture.ts            # ladrilho determinístico do giz de cera
+│  │  └─ tools.ts              # ferramentas e tabela de espessuras
+│  ├─ components/Dock.tsx      # ferramentas, tamanhos, paleta
+│  ├─ data/{letters.ts,palette.ts}
+│  └─ styles.css
 └─ docs/decisoes.md
 ```
+
+Previsto para as próximas etapas: `storage/db.ts` (IndexedDB), `components/LetterGrid.tsx` (grade das 26), `components/Confirm.tsx` (limpar tudo), `sound/` (provider no-op — D10).
 
 ### D13 · Testes
 
 - **Vitest**: geometria, leitura do mapa de regiões, serialização da persistência, migração de schema do IndexedDB.
 - **Playwright**: fluxo com Pointer Events sintéticos — pintar, navegar, recarregar e conferir que a pintura voltou; balde; borracha; limpar letra/limpar tudo.
+
+### D14 · Composição da tela (uma build só, três faixas)
+
+Ordem vertical: **barra de navegação (‹ letra › desfazer) → palco → dock (ferramentas + tamanhos + cores)**. O dock é o que resolve o desperdício de altura em retrato: a arte é paisagem (1,31:1) e fica limitada pela largura, então o espaço que sobra vai para os controles, não para margem vazia.
+
+- **Paleta**: `6 × 4` no celular em retrato (24 divide certo; `auto-fit` dava 7 colunas com 3 sobrando na última linha) e `12 × 2` a partir de 760 px.
+- **Celular deitado (altura ≤ 560 px)**: a altura é o recurso escasso, então a paleta vira **fita horizontal com rolagem** (swatches de 40 px) e as ferramentas encolhem. Decisão explícita: rolagem lateral só nesse caso; em telas altas as 24 cores ficam todas visíveis, como manda A.3.
+- **Alvos de toque**: swatch ≥ 44 px, ferramenta ≥ 44 px, tamanho ≥ 34 px com halo no ativo (o dedo de uma criança erra muito).
+- **Sem texto na UI**: só ícones e cor. Os rótulos existem em `aria-label` (pt-BR) para leitores de tela e para os testes.
+- **Cor ativa** aparece com anel de 3 px de papel + 3 px de tinta; **ferramenta ativa** com anel interno na cor de destaque; **tamanho ativo** com fundo `#e7e2d8`.
 
 ---
 
@@ -226,7 +238,8 @@ lore/
 
 1. **Layout da paleta no celular**: grade fluida 4×6 (proposta em A.3) vs. duas linhas com scroll horizontal. Testar com o dedo antes de fechar.
 2. **Paleta de 24 pode ficar apagada.** Os 8 tons extras de alta saturação que eu havia proposto (magenta `#E64980`, ciano `#22D3EE`, roxo vivo `#7048E8`, laranja-neon `#FF922B`, dourado `#FAB005`, rosa-chiclete `#FF8FCF`, marrom `#8B5E34`, cinza-claro `#CED4DA`) foram retirados junto com a mudança de ordem. Reavaliar depois do primeiro teste com a criança.
-3. **Retrato de celular desperdiça altura.** A arte é paisagem (1,31:1), então em retrato a folha é limitada pela largura (366 × 279 num iPhone de 390) e sobram ~480 px verticais. A paleta e as ferramentas ocupam parte disso na Etapa 3; se ainda sobrar vazio, as saídas são (a) pinça para ampliar a letra, (b) ferramentas em gaveta recolhível. Não vale mexer na arte nem em canvas por letra: o canvas fixo de D7 é o que garante coordenadas iguais em qualquer tela e a persistência simples.
+3. **Retrato de celular desperdiça altura.** A arte é paisagem (1,31:1), então em retrato a folha é limitada pela largura (366 × 279 num iPhone de 390). **Parcialmente resolvido na Etapa 3:** o dock (ferramentas + paleta 6×4) ocupa a parte de baixo. Sobram ~100 px de folga entre a arte e o dock; se ainda incomodar no teste com a criança, as saídas são (a) pinça para ampliar a letra, (b) gaveta recolhível de ferramentas. Não vale mexer na arte nem em canvas por letra: o canvas fixo de D7 é o que garante coordenadas iguais em qualquer tela e a persistência simples.
+4. **Letra apagada até o fim conta como "pintada".** O histórico tem comandos de borracha, então `hasPaint()` continua verdadeiro com a tela em branco. Na Etapa 4 isso apareceria na grade como uma miniatura em branco. Decidir lá: salvar só se houver píxel não transparente (checagem barata no momento do save) e, se não houver, apagar o blob.
 
 ---
 
@@ -297,6 +310,31 @@ Conclusão: o potrace preservou dentes, cílios, antenas, hastes dos óculos e m
 - Pincel, giz de cera, borracha, balde (region map), 3 tamanhos, paleta de 24.
 
 **Gate 3:** balde sem costura branca sob o traço; borracha não apaga a tinta; giz com textura visível.
+
+### Resultado da Etapa 3 (16/11/2026)
+
+Quatro ferramentas, três tamanhos, 24 cores. Undo único para tudo (traço, balde e borracha) porque o histórico guarda **comandos**, e o replay redesenha na mesma ordem — é o que faz a borracha não apagar o que veio depois dela e o balde não "vazar" no undo.
+
+| Item | Como ficou |
+|---|---|
+| Pincel | traço sólido, cantos redondos, 30 / 58 / 100 px |
+| Giz de cera | duas passadas (corpo largo + núcleo estreito) com textura de ladrilho semeado por cor; 36 / 68 / 116 px |
+| Borracha | `destination-out` na camada de pintura; 80 / 150 / 240 px |
+| Balde | máscara cacheada por região em resolução de pintura, 2× exato do `region.png` |
+| Undo | pilha de comandos da sessão; desfazer do balde e da borracha também |
+
+Medições (`e2e/tools.spec.ts`, 18 casos × 2 projetos, todos verdes):
+
+- **Balde**: 0 píxeis pintados fora da região (fora = qualquer região diferente da alvo e que não seja tinta); **100%** dos píxeis da região encostados na linha preta ficaram cobertos → sem costura branca. Confirmado no zoom visual.
+- **Costura**: a máscara do balde é **dilatada 1 px para dentro da tinta**. Como a tinta é sempre desenhada por cima, a dilatação é invisível e mata o fio branco do antialiasing.
+- **Borracha**: apaga > 80% do traço e a contagem de píxeis da camada de tinta não muda em 1 píxel.
+- **Giz**: 26% dos píxeis da faixa central com cobertura parcial no tamanho médio (31% no grande) contra 0,2% do pincel — textura medida, não só "parece".
+- **Cache**: a máscara de cada região é montada na primeira vez que o balde a usa e reaproveitada; a soma das regiões é ~13 MB de canvas por letra no pior caso.
+
+Dois ajustes que só apareceram olhando o print:
+
+1. `auto-fit`/`minmax(44px, 1fr)` na paleta dava **7 colunas** num iPhone de 390 px, deixando 3 swatches órfãos na última linha. Trocado por 6 colunas fixas (12 no desktop).
+2. O primeiro giz parecia **confete**: furos grandes e de alto contraste. Refeito com grão fino e denso + poucas falhas fundas (média de alfa foi de 219 para 238 de 255).
 
 ### Etapa 4 · Persistência (1 dia)
 
