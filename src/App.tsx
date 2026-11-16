@@ -192,13 +192,29 @@ export default function App() {
 
     setCanUndo(false);
     void (async () => {
-      await painter.loadLetter(letter);
-      const saved = await getPaint(letter);
-      if (saved) await painter.restorePaint(saved);
+      if (saveTimer.current !== null) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+
+      const { outgoing, token } = painter.hold(letter);
+      if (outgoing) {
+        const blob = await painter.exportPaintBlob();
+        if (blob) await putPaint(outgoing, blob);
+        else await deletePaint(outgoing);
+        await refreshPainted();
+      }
+
+      const { sessionRestored } = await painter.loadLetter(letter, token);
+      if (!sessionRestored) {
+        const saved = await getPaint(letter);
+        if (saved) await painter.restorePaint(saved, token);
+      }
+
       preload(LETTERS[(index + 1) % LETTERS.length]);
       preload(LETTERS[(index - 1 + LETTERS.length) % LETTERS.length]);
     })();
-  }, [letter, index, painterReady]);
+  }, [letter, index, painterReady, refreshPainted]);
 
   const openGrid = useCallback(() => {
     void flushSave().then(() => setScreen('grid'));
@@ -221,7 +237,9 @@ export default function App() {
   const clearLetter = useCallback(
     (target?: Letter) => {
       const key = target ?? letterRef.current;
-      if (key === letterRef.current) painterRef.current?.clear();
+      const painter = painterRef.current;
+      if (key === letterRef.current) painter?.clear();
+      else painter?.discardSession(key);
       void (async () => {
         await deletePaint(key);
         await refreshPainted();
@@ -232,7 +250,9 @@ export default function App() {
 
   const clearAll = useCallback(() => {
     setConfirmClearAll(false);
-    painterRef.current?.clear();
+    const painter = painterRef.current;
+    painter?.clear();
+    painter?.discardAllSessions();
     void (async () => {
       await deleteAllPaint();
       await refreshPainted();
