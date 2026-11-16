@@ -21,7 +21,7 @@ body,
 }
 
 body {
-  background: var(--paper);
+  background: #fff;
   color: var(--ink);
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
   overflow: hidden;
@@ -84,6 +84,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  background: #fff;
   /* canaleta das setas: 10 px no celular, 86 px quando elas vão para as laterais */
   --gutter: 10px;
   padding: 8px var(--gutter);
@@ -122,9 +123,9 @@ body {
   width: 100%;
   max-width: 100%;
   max-height: 100%;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: var(--shadow);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   touch-action: none;
   transform-origin: 0 0;
@@ -494,7 +495,7 @@ body {
   padding-top: max(8px, env(safe-area-inset-top));
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-  background: var(--paper);
+  background: #fff;
 }
 
 .grid-screen__bar {
