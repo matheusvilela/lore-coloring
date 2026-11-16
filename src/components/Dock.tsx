@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import {
   TOOLS,
   dockSizeDotPx,
@@ -55,8 +56,11 @@ export function Dock({
   const actionsRef = useRef<HTMLDivElement>(null);
   const paintRef = useRef<HTMLDivElement>(null);
   const sizeAnchorRef = useRef<HTMLDivElement>(null);
+  const sizeButtonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const [stacked, setStacked] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
   const popoverId = useId();
   const previewTool = stillUsesSize ? tool : 'brush';
   const dotPx = dockSizeDotPx(sizeT, previewTool);
@@ -94,11 +98,40 @@ export function Dock({
     setSizeOpen(false);
   }, [tool]);
 
+  useLayoutEffect(() => {
+    if (!sizeOpen) return;
+    const place = () => {
+      const button = sizeButtonRef.current;
+      if (!button) return;
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(220, window.innerWidth - 24);
+      const right = Math.max(12, window.innerWidth - rect.right);
+      const mobile = window.matchMedia('(max-width: 759px)').matches;
+      setPopoverStyle({
+        position: 'fixed',
+        right,
+        width,
+        left: 'auto',
+        ...(mobile
+          ? { top: rect.bottom + 8, bottom: 'auto' }
+          : { top: 'auto', bottom: window.innerHeight - rect.top + 8 }),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [sizeOpen]);
+
   useEffect(() => {
     if (!sizeOpen) return;
     const dismiss = (event: PointerEvent) => {
       const target = event.target;
-      if (!(target instanceof Node) || sizeAnchorRef.current?.contains(target)) return;
+      if (!(target instanceof Node)) return;
+      if (sizeAnchorRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
       setSizeOpen(false);
     };
     document.addEventListener('pointerdown', dismiss);
@@ -135,6 +168,7 @@ export function Dock({
 
             <div ref={sizeAnchorRef} className="dock__size-anchor">
               <button
+                ref={sizeButtonRef}
                 type="button"
                 className={`tool tool--size${sizeOpen ? ' is-active' : ''}`}
                 aria-label="Tamanho do traço"
@@ -145,17 +179,20 @@ export function Dock({
               >
                 <SizeIcon dotPx={dotPx} />
               </button>
-              {sizeOpen && stillUsesSize ? (
+              {sizeOpen && stillUsesSize
+                ? createPortal(
                 <div
+                  ref={popoverRef}
                   id={popoverId}
                   className="size-popover"
+                  style={popoverStyle}
                   role="dialog"
                   aria-label="Espessura do traço"
                   onPointerDown={(event) => event.stopPropagation()}
                 >
                   <div className="size-popover__wedge">
-                    <svg className="size-popover__track" viewBox="0 0 200 40" aria-hidden="true">
-                      <polygon points="4,36 192,6 192,36" fill="currentColor" opacity="0.14" />
+                    <svg className="size-popover__track" viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true">
+                      <polygon points="0,36 200,2 200,36" fill="currentColor" opacity="0.22" />
                     </svg>
                     <input
                       type="range"
@@ -179,8 +216,10 @@ export function Dock({
                       aria-hidden="true"
                     />
                   </div>
-                </div>
-              ) : null}
+                </div>,
+                document.body,
+              )
+                : null}
             </div>
           </div>
 
@@ -318,10 +357,10 @@ function ToolIcon({ tool }: { tool: Tool }) {
         strokeLinejoin="round"
         aria-hidden="true"
       >
-        <path d="M18 11V6a2 2 0 0 0-4 0v5" />
-        <path d="M14 10V4a2 2 0 0 0-4 0v10" />
-        <path d="M10 10.5V6a2 2 0 0 0-4 0v8" />
-        <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.87 3.87a1 1 0 0 1-1.41-1.41l9.2-9.2A4 4 0 0 1 18 8z" />
+        <path d="M8 13v-7.5a1.5 1.5 0 0 1 3 0v6.5" />
+        <path d="M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5" />
+        <path d="M14 5.5a1.5 1.5 0 0 1 3 0v6.5" />
+        <path d="M17 7.5a1.5 1.5 0 0 1 3 0v8.5a6 6 0 0 1-6 6h-2h.208a6 6 0 0 1-5.012-2.7l-.196-.3-2.5-4.5a1.5 1.5 0 0 1 2.584-1.5l1.916 2.5" />
       </svg>
     );
   }

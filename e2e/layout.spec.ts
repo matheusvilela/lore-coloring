@@ -128,3 +128,34 @@ test('no desktop baixo: controles numa fita horizontal', async ({ page }) => {
   expect(styles.wrap).toBe('nowrap');
   expect(styles.overflowX).toBe('auto');
 });
+
+test('menu de tamanho: visível, alinhado à direita, linha na base da cunha', async ({ page }) => {
+  await page.setViewportSize({ width: 448, height: 997 });
+  await page.goto('/');
+
+  const button = page.getByRole('button', { name: 'Tamanho do traço' });
+  await button.click();
+  const popover = page.getByRole('dialog', { name: 'Espessura do traço' });
+  await expect(popover).toBeVisible();
+
+  const buttonBox = await button.boundingBox();
+  const popoverBox = await popover.boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(popoverBox).not.toBeNull();
+  expect(popoverBox!.y).toBeGreaterThan(buttonBox!.y + buttonBox!.height - 2);
+  expect(popoverBox!.x + popoverBox!.width).toBeCloseTo(buttonBox!.x + buttonBox!.width, 0);
+  expect(popoverBox!.y + popoverBox!.height).toBeLessThan(997);
+
+  const baselineGap = await page.evaluate(() => {
+    const thumb = document.querySelector('.size-popover__thumb')!;
+    const track = document.querySelector('.size-popover__track')!;
+    return Math.abs(thumb.getBoundingClientRect().bottom - track.getBoundingClientRect().bottom);
+  });
+  expect(baselineGap).toBeLessThan(1.5);
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const desktopButton = await button.boundingBox();
+  const desktopPopover = await popover.boundingBox();
+  expect(desktopPopover!.y + desktopPopover!.height).toBeLessThan(desktopButton!.y + 4);
+  expect(desktopPopover!.x + desktopPopover!.width).toBeCloseTo(desktopButton!.x + desktopButton!.width, 0);
+});
