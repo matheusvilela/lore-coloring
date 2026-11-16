@@ -651,7 +651,8 @@ export class Painter {
   /**
    * Máscara deste preenchimento. Saves sem `at` (e toques sem nenhum traço
    * antes) usam a região inteira. Com traços, o flood para na tinta da letra
-   * e na parede; a dilatação de 1px só entra na tinta, nunca no traço.
+   * e na parede. A dilatação de 1px entra na tinta da letra e na borda interna
+   * do traço, para não sobrar uma costura branca.
    */
   private fillMask(cmd: FillCommand): FillMask | null {
     if (cmd.mask !== undefined) return cmd.mask;
@@ -980,8 +981,10 @@ function prevent(event: Event): void {
 
 /**
  * Componente 4-conexo a partir do toque, parado na tinta da letra e na parede
- * do traço. A dilatação de 1px entra só na tinta (a linha preta cobre isso);
- * nunca no traço, que mora na mesma camada que a cor.
+ * do traço. A parede é meia-resolução, então o degrau dela deixa uma costura
+ * branca contra o traço real. A dilatação de 1px cobre essa franja (o balde
+ * pinta depois do traço) e também entra na tinta da letra. Um píxel não
+ * atravessa o traço: a espessura mínima tem 7 células.
  */
 function floodInside(ids: Uint16Array, walls: Uint8Array, sx: number, sy: number): Uint8Array | null {
   const start = sy * REGION_W + sx;
@@ -1009,33 +1012,45 @@ function floodInside(ids: Uint16Array, walls: Uint8Array, sx: number, sy: number
     if (y + 1 < REGION_H) push(i + REGION_W);
   }
 
+  const grown = new Uint8Array(ids.length);
+  grown.set(filled);
+  for (let y = 0; y < REGION_H; y++) {
+    const row = y * REGION_W;
+    for (let x = 0; x < REGION_W; x++) {
+      const i = row + x;
+      if (!walls[i] || filled[i]) continue;
+      if (touches(filled, x, y)) grown[i] = 1;
+    }
+  }
+
   const inside = new Uint8Array(ids.length);
-  inside.set(filled);
+  inside.set(grown);
 
   for (let y = 0; y < REGION_H; y++) {
     const row = y * REGION_W;
     for (let x = 0; x < REGION_W; x++) {
       const i = row + x;
-      if (filled[i] || ids[i] !== INK_REGION) continue;
-      let touch = false;
-      for (let dy = -1; dy <= 1 && !touch; dy++) {
-        const ny = y + dy;
-        if (ny < 0 || ny >= REGION_H) continue;
-        const nrow = ny * REGION_W;
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx;
-          if (nx < 0 || nx >= REGION_W) continue;
-          if (filled[nrow + nx]) {
-            touch = true;
-            break;
-          }
-        }
-      }
-      if (touch) inside[i] = 1;
+      if (grown[i] || ids[i] !== INK_REGION) continue;
+      if (touches(grown, x, y)) inside[i] = 1;
     }
   }
 
   return inside;
+}
+
+function touches(mask: Uint8Array, x: number, y: number): boolean {
+  for (let dy = -1; dy <= 1; dy++) {
+    const ny = y + dy;
+    if (ny < 0 || ny >= REGION_H) continue;
+    const row = ny * REGION_W;
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = x + dx;
+      if (nx < 0 || nx >= REGION_W) continue;
+      if (mask[row + nx]) return true;
+    }
+  }
+  return false;
 }
 
 function paintLayerHasPixels(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {

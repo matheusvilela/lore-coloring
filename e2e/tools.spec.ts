@@ -484,6 +484,46 @@ function isYellow(pixel: { r: number; g: number; b: number; a: number }) {
   return pixel.a === 255 && pixel.r > 250 && pixel.g > 250 && pixel.b < 8;
 }
 
+/**
+ * Colunas em que um vão claro separa o preenchimento do traço.
+ * Varre de dentro do laço para fora, numa faixa que só cruza a borda de cima.
+ */
+async function whiteSeamColumns(page: Page, x0: number, x1: number, yFrom: number, yTo: number) {
+  return page.evaluate(
+    ({ x0, x1, yFrom, yTo }) => {
+      const canvas = document.querySelector<HTMLCanvasElement>('.layer--paint')!;
+      const ctx = canvas.getContext('2d')!;
+      const left = Math.min(x0, x1);
+      const width = Math.abs(x1 - x0) + 1;
+      const top = Math.min(yFrom, yTo);
+      const height = Math.abs(yTo - yFrom) + 1;
+      const data = ctx.getImageData(left, top, width, height).data;
+      const yStart = yFrom - top;
+      const yEnd = yTo - top;
+      const step = yEnd < yStart ? -1 : 1;
+      let seams = 0;
+      for (let x = 0; x < width; x++) {
+        let sawPaint = false;
+        let sawGap = false;
+        for (let y = yStart; step > 0 ? y <= yEnd : y >= yEnd; y += step) {
+          const a = data[(y * width + x) * 4 + 3]!;
+          if (a >= 200) {
+            if (sawGap) {
+              seams++;
+              break;
+            }
+            sawPaint = true;
+          } else if (sawPaint && a < 32) {
+            sawGap = true;
+          }
+        }
+      }
+      return seams;
+    },
+    { x0, x1, yFrom, yTo },
+  );
+}
+
 test('o balde para no traço fechado e segue um vão', async ({ page }) => {
   test.setTimeout(60_000);
   await ready(page);
@@ -514,6 +554,7 @@ test('o balde para no traço fechado e segue um vão', async ({ page }) => {
 
   await expect.poll(() => paintPixel(page, loop!.inside.x, loop!.inside.y).then(isYellow)).toBe(true);
   expect(await paintPixel(page, loop!.outside.x, loop!.outside.y)).toMatchObject({ a: 0 });
+  expect(await whiteSeamColumns(page, loop!.x0 + 16, loop!.x1 - 16, loop!.inside.y, loop!.outside.y)).toBe(0);
 
   // o toque fica no histórico: depois de recarregar o vão continua vazio
   await page.waitForTimeout(950);
@@ -523,6 +564,7 @@ test('o balde para no traço fechado e segue um vão', async ({ page }) => {
   await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
   await expect.poll(() => paintPixel(page, loop!.inside.x, loop!.inside.y).then(isYellow)).toBe(true);
   expect(await paintPixel(page, loop!.outside.x, loop!.outside.y)).toMatchObject({ a: 0 });
+  expect(await whiteSeamColumns(page, loop!.x0 + 16, loop!.x1 - 16, loop!.inside.y, loop!.outside.y)).toBe(0);
 
   const undo = page.getByRole('button', { name: 'Desfazer' });
   await undo.click();
