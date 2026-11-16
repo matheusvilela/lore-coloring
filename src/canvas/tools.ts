@@ -13,24 +13,11 @@ const SIZE_RANGE: Record<Tool, readonly [number, number] | null> = {
   move: null,
 };
 
-const POPOVER_THUMB_H = [6, 36] as const;
-
 export function resolveSize(tool: Tool, sizeT: number): number {
   const range = SIZE_RANGE[tool];
   if (!range) return 0;
   const t = clamp01(sizeT);
   return Math.round(range[0] + t * (range[1] - range[0]));
-}
-
-/** Altura da linha vertical no popover de tamanho (6–36 px). */
-export function popoverThumbHeight(tool: Tool, sizeT: number): number {
-  const range = SIZE_RANGE[tool];
-  if (!range) return POPOVER_THUMB_H[0];
-  const px = resolveSize(tool, sizeT);
-  const span = range[1] - range[0];
-  if (span <= 0) return POPOVER_THUMB_H[0];
-  const t = (px - range[0]) / span;
-  return Math.round(POPOVER_THUMB_H[0] + t * (POPOVER_THUMB_H[1] - POPOVER_THUMB_H[0]));
 }
 
 /** Diâmetro do ponto no botão do dock (não é o tamanho do traço no canvas). */
