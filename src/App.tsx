@@ -284,7 +284,7 @@ export default function App() {
         onOpenGrid={openGrid}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
-        onZoomReset={resetZoom}
+        onClearLetter={() => clearLetter()}
       />
 
       {confirmClearAll ? (

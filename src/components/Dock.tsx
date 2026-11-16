@@ -26,7 +26,7 @@ type Props = {
   onOpenGrid: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  onZoomReset: () => void;
+  onClearLetter: () => void;
 };
 
 export function Dock({
@@ -41,7 +41,7 @@ export function Dock({
   onOpenGrid,
   onZoomIn,
   onZoomOut,
-  onZoomReset,
+  onClearLetter,
 }: Props) {
   const stillUsesSize = toolUsesSize(tool);
 
@@ -58,8 +58,8 @@ export function Dock({
           <button type="button" className="tool tool--meta" onClick={onZoomOut} aria-label="Zoom menos">
             <ZoomOutIcon />
           </button>
-          <button type="button" className="tool tool--meta" onClick={onZoomReset} aria-label="Restaurar zoom original">
-            <ZoomResetIcon />
+          <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
+            <ClearLetterIcon />
           </button>
         </div>
 
@@ -235,11 +235,12 @@ function ZoomOutIcon() {
   );
 }
 
-function ZoomResetIcon() {
+function ClearLetterIcon() {
   return (
     <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
-      <path d="M5 7h10v10H5z" strokeLinejoin="round" />
-      <path d="M9 7V5h10v10h-2" strokeLinejoin="round" />
+      <path d="M6 7h12" strokeLinecap="round" />
+      <path d="M9 7V5h6v2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 7l.8 12.2h6.4L16 7" strokeLinejoin="round" />
     </svg>
   );
 }

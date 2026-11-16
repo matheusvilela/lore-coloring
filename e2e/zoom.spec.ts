@@ -211,7 +211,7 @@ test('botões de zoom no dock ajustam a folha', async ({ page }) => {
     .poll(async () => (await sheetBox(page)).transform)
     .not.toBe('');
 
-  await page.getByRole('button', { name: 'Restaurar zoom original' }).click();
+  await page.keyboard.press('0');
   expect((await sheetBox(page)).transform).toBe('');
 });
 
