@@ -42,6 +42,7 @@ function queuePersistLetter(painter: Painter, letter: Letter): Promise<void> {
 }
 
 export default function App() {
+  const appRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLElement | null>(null);
   const pagerRef = useRef<HTMLElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
@@ -161,6 +162,34 @@ export default function App() {
       setPainterReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useLayoutEffect(() => {
+    const app = appRef.current;
+    const tools = app?.querySelector<HTMLElement>('.dock__tools');
+    if (!app || !tools) return;
+
+    const place = () => {
+      if (!window.matchMedia('(max-width: 759px)').matches) {
+        app.style.removeProperty('--dock-tools-bottom');
+        return;
+      }
+      const bottom = Math.round(tools.getBoundingClientRect().bottom);
+      app.style.setProperty('--dock-tools-bottom', `${bottom}px`);
+    };
+
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(tools);
+    window.addEventListener('resize', place);
+    const mq = window.matchMedia('(max-width: 759px)');
+    mq.addEventListener('change', place);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', place);
+      mq.removeEventListener('change', place);
+      app.style.removeProperty('--dock-tools-bottom');
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -325,16 +354,22 @@ export default function App() {
   }, [go, redo, resetZoom, undo]);
 
   return (
-    <div className="app">
+    <div className="app" ref={appRef}>
       <p className="letter-status" role="status" aria-live="polite">
         {letter}
       </p>
 
       <main className="stage" ref={stageRef}>
         {Math.abs(zoomScale - 1) > 0.01 ? (
-          <span className="zoom-pill" role="status" aria-live="polite">
+          <button
+            type="button"
+            className="zoom-pill"
+            onClick={resetZoom}
+            aria-live="polite"
+            aria-label={`Zoom ${Math.round(zoomScale * 100)}%. Voltar a 100%`}
+          >
             {Math.round(zoomScale * 100)}%
-          </span>
+          </button>
         ) : null}
         <div className="sheet-wrap">
           <div

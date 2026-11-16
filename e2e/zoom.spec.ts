@@ -218,6 +218,36 @@ test('botões de zoom no dock ajustam a folha', async ({ page }) => {
   await expect(page.locator('.zoom-pill')).toHaveCount(0);
 });
 
+test('tocar no indicador de zoom volta a 100%', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('button', { name: 'Zoom mais' }).click();
+  await expect(page.locator('.zoom-pill')).toBeVisible();
+
+  await page.getByRole('button', { name: /Voltar a 100%/ }).click();
+  expect((await sheetBox(page)).transform).toBe('');
+  await expect(page.locator('.zoom-pill')).toHaveCount(0);
+});
+
+test('no celular, o indicador fica abaixo da faixa de ferramentas', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'celular', 'layout de celular');
+
+  for (const width of [630, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await ready(page);
+    await page.getByRole('button', { name: 'Zoom mais' }).click();
+
+    const pill = page.locator('.zoom-pill');
+    await expect(pill).toBeVisible();
+    const tools = (await page.locator('.dock__tools').boundingBox())!;
+    const box = (await pill.boundingBox())!;
+    const gap = box.y - (tools.y + tools.height);
+    expect(gap).toBeGreaterThanOrEqual(6);
+    expect(gap).toBeLessThanOrEqual(12);
+    expect(box.x + box.width).toBeLessThanOrEqual(width - 8);
+    expect(box.x + box.width).toBeGreaterThan(width - 28);
+  }
+});
+
 test('a tecla 0 volta ao encaixe; trocar de letra mantém o zoom', async ({ page }) => {
   await ready(page);
   await pinch(page, 120, 380);
