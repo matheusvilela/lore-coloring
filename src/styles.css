@@ -31,7 +31,12 @@ body {
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
 }
-
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+}
 
 /* ---------- botões ---------- */
 
@@ -310,26 +315,7 @@ body {
     inset 0 0 0 1px rgba(42, 38, 34, 0.1);
 }
 
-/* ---------- dock em vidro ---------- */
-
-.dock__tools,
-.dock__colors {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
-  box-shadow: 0 0 28px rgba(42, 38, 34, 0.06);
-}
-
-.dock .tool {
-  background: var(--glass-bg-strong);
-  box-shadow: 0 2px 10px rgba(42, 38, 34, 0.1);
-}
-
-.dock .tool.is-active {
-  background: rgba(255, 255, 255, 0.88);
-}
-
-/* celular: palco em tela cheia; ferramentas em cima, paleta embaixo */
+/* celular: palco em tela cheia; dock em vidro; ferramentas em cima, paleta embaixo */
 @media (max-width: 759px) {
   .app {
     position: relative;
@@ -362,6 +348,19 @@ body {
   .dock__tools,
   .dock__colors {
     pointer-events: auto;
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    box-shadow: 0 0 28px rgba(42, 38, 34, 0.06);
+  }
+
+  .dock .tool {
+    background: var(--glass-bg-strong);
+    box-shadow: 0 2px 10px rgba(42, 38, 34, 0.1);
+  }
+
+  .dock .tool.is-active {
+    background: rgba(255, 255, 255, 0.88);
   }
 
   .dock__tools {
@@ -391,65 +390,13 @@ body {
   }
 }
 
-/* desktop: coluna clássica (letra acima, dock embaixo) até dar zoom */
+/* desktop: dock clássico embaixo do palco */
 @media (min-width: 760px) {
-  .app {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    height: 100dvh;
-  }
-
-  .dock {
-    flex-shrink: 0;
-    gap: 10px;
-    padding: 4px 12px calc(12px + env(safe-area-inset-bottom));
-  }
-
-  .dock__tools {
-    gap: 10px;
-    padding: 10px clamp(16px, 3vw, 32px) 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.45);
-  }
-
-  .dock__colors {
-    padding: 8px clamp(16px, 3vw, 32px) 4px;
-    border-top: 1px solid rgba(255, 255, 255, 0.35);
-  }
-
   .palette {
     grid-template-columns: repeat(12, minmax(0, 1fr));
     max-width: 720px;
     margin: 0 auto;
     width: 100%;
-  }
-
-  /* com zoom: folha atrás do dock em vidro */
-  .app.app--sheet-zoomed {
-    display: block;
-    position: relative;
-  }
-
-  .app.app--sheet-zoomed .stage {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    flex: none;
-  }
-
-  .app.app--sheet-zoomed .dock {
-    position: relative;
-    z-index: 2;
-    min-height: 100dvh;
-    gap: 0;
-    padding: 0;
-    pointer-events: none;
-    justify-content: flex-end;
-  }
-
-  .app.app--sheet-zoomed .dock__tools,
-  .app.app--sheet-zoomed .dock__colors {
-    pointer-events: auto;
   }
 }
 

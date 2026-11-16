@@ -243,10 +243,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [go, resetZoom, undo]);
 
-  const sheetZoomed = Math.abs(zoomScale - 1) > 0.01;
-
   return (
-    <div className={`app${sheetZoomed ? ' app--sheet-zoomed' : ''}`}>
+    <div className="app">
       <p className="letter-status" role="status" aria-live="polite">
         {letter}
       </p>
