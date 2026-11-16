@@ -235,64 +235,6 @@ function classifyRegions(regions, w, h) {
   };
 }
 
-/** Canto da esclera que visualmente pertence à pálpebra (fenda à esquerda da crista). */
-function splitScleraCornerMask(labels, regionId, w, h, cornerSide) {
-  const on = regionMask(labels, regionId, w, h, 0);
-  let minX = w;
-  let minY = h;
-  let maxX = 0;
-  let maxY = 0;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!on[y * w + x]) continue;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
-  }
-  const cornerH = Math.max(3, Math.round((maxY - minY + 1) * 0.3));
-  const cornerW = Math.max(3, Math.round((maxX - minX + 1) * 0.32));
-  const white = on.slice();
-  const cornerRed = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!on[y * w + x]) continue;
-      const inCorner =
-        y < minY + cornerH &&
-        (cornerSide === 'left' ? x < minX + cornerW : x > maxX - cornerW);
-      if (inCorner) {
-        white[y * w + x] = 0;
-        cornerRed[y * w + x] = 1;
-      }
-    }
-  }
-  return { white, cornerRed };
-}
-
-/** Pálpebras: região superior do balde, expandida dentro das regiões do olho. */
-function regionMaskLid(labels, regionId, w, h, sideIds, { padDown = 4, padLeft = 0, padRight = 0 } = {}) {
-  const on = regionMask(labels, regionId, w, h, 0);
-  const out = on.slice();
-  const allowed = (x, y) => {
-    if (x < 0 || y < 0 || x >= w || y >= h) return false;
-    return sideIds.includes(labels[y * w + x]);
-  };
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!on[y * w + x]) continue;
-      for (let dy = 0; dy <= padDown; dy++) {
-        for (let dx = -padLeft; dx <= padRight; dx++) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (allowed(nx, ny)) out[ny * w + nx] = 1;
-        }
-      }
-    }
-  }
-  return out;
-}
-
 async function traceColoredMask(pbm, color, name, px) {
   const pbmPath = path.join(TMP, `${name}.pbm`);
   const rawSvgPath = path.join(TMP, `${name}.svg`);
@@ -340,45 +282,15 @@ async function buildColoredPaths(labels, buckets, w, h, px) {
   ]) {
     if (regions.length === 0) continue;
     const meanCy = regions.reduce((s, r) => s + r.cy, 0) / regions.length;
-    const sideIds = regions.map((er) => er.id);
     for (const r of regions) {
       const isLid = r.cy < meanCy;
-      const lidPad =
-        side === 'eye-left' ? { padDown: 4, padLeft: 5 } : { padDown: 4, padRight: 2 };
-      if (isLid) {
-        const pbm = maskToPBM(regionMaskLid(labels, r.id, w, h, sideIds, lidPad), w, h);
-        const paths = await traceColoredMask(pbm, COLORS.body, `${side}-${r.id}-lid`, px);
-        base.push(...paths);
-        overlay.push(...paths);
-        continue;
-      }
-      const cornerSide = side === 'eye-left' ? 'left' : side === 'eye-right' ? 'right' : null;
-      if (cornerSide) {
-        const { white, cornerRed } = splitScleraCornerMask(labels, r.id, w, h, cornerSide);
-        const whitePaths = await traceColoredMask(
-          maskToPBM(white, w, h),
-          COLORS.eye,
-          `${side}-${r.id}-white`,
-          px,
-        );
-        base.push(...whitePaths);
-        const cornerPaths = await traceColoredMask(
-          maskToPBM(cornerRed, w, h),
-          COLORS.body,
-          `${side}-${r.id}-corner`,
-          px,
-        );
-        base.push(...cornerPaths);
-        overlay.push(...cornerPaths);
-      } else {
-        const paths = await traceColoredMask(
-          regionPBM(labels, r.id, w, h),
-          COLORS.eye,
-          `${side}-${r.id}`,
-          px,
-        );
-        base.push(...paths);
-      }
+      const paths = await traceColoredMask(
+        regionPBM(labels, r.id, w, h),
+        isLid ? COLORS.body : COLORS.eye,
+        `${side}-${r.id}`,
+        px,
+      );
+      base.push(...paths);
     }
   }
 
@@ -399,29 +311,17 @@ async function buildColoredPaths(labels, buckets, w, h, px) {
 const POTRACE_G =
   '<g class="fills" transform="translate(0.000000,251.000000) scale(0.100000,-0.100000)" fill="#000000" stroke="none">';
 
-function leftEyelidCornerPatch(leftEyeRegions) {
-  if (leftEyeRegions.length < 2) return '';
-  const upper = leftEyeRegions.reduce((a, b) => (a.cy < b.cy ? a : b));
-  const lower = leftEyeRegions.reduce((a, b) => (a.cy > b.cy ? a : b));
-  const top = `<ellipse cx="${upper.minX + 5}" cy="${upper.minY + 4}" rx="6" ry="4.5" fill="${COLORS.body}" />`;
-  const seam = `<ellipse cx="${upper.minX + 4}" cy="${upper.maxY + 0.5}" rx="5.5" ry="3.5" fill="${COLORS.body}" />`;
-  return `${top}\n${seam}`;
-}
-
-async function composeSvg({ base, overlay }, inkGroup, cornerPatch = '') {
+async function composeSvg({ base, overlay }, inkGroup) {
   const viewBox = `${BOX.minX} ${BOX.minY} ${BOX.w} ${BOX.h}`;
-  const overlayInner = POTRACE_G.replace('class="fills"', 'class="fills-overlay-inner"');
+  const overlayInner = POTRACE_G.replace('class="fills"', 'class="fills-overlay"');
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${BOX.w}" height="${BOX.h}" preserveAspectRatio="xMidYMid meet">
 ${POTRACE_G}
 ${base.map((p) => `  ${p}`).join('\n')}
 </g>
 ${colorizeInkGroup(inkGroup)}
-<g class="fills-overlay">
 ${overlayInner}
 ${overlay.map((p) => `  ${p}`).join('\n')}
 </g>
-</g>
-<g class="fills-patch">${cornerPatch}</g>
 </svg>`;
 }
 
@@ -467,8 +367,7 @@ async function main() {
   const px = { w: BOX.w, h: BOX.h };
   const fillLayers = await buildColoredPaths(labels, buckets, w, h, px);
   const inkGroup = inkGroupFromInkSvg(fs.readFileSync(INK_SVG, 'utf8'));
-  const cornerPatch = leftEyelidCornerPatch(buckets.leftEyeRegions);
-  const svg = await composeSvg(fillLayers, inkGroup, cornerPatch);
+  const svg = await composeSvg(fillLayers, inkGroup);
 
   const iconSvgPath = path.join(OUT_DIR, 'icon.svg');
   fs.writeFileSync(iconSvgPath, svg);
