@@ -84,7 +84,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: #fff;
+  background: var(--glass-bg);
   /* canaleta das setas: 10 px no celular, 86 px quando elas vão para as laterais */
   --gutter: 10px;
   padding: 8px var(--gutter);
