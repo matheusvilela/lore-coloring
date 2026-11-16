@@ -50,28 +50,81 @@ export function paintKey(letter: string): string {
   return `lore:paint:${letter}`;
 }
 
+function historyKey(letter: string): string {
+  return `lore:history:${letter}`;
+}
+
+function baseKey(letter: string): string {
+  return `lore:base:${letter}`;
+}
+
 export async function getPaint(letter: string): Promise<Blob | undefined> {
   await awaitPaintWrites(letter);
   return (await database()).get(STORE, paintKey(letter));
 }
 
-/** Persiste o snapshot (null apaga). A captura de pixels deve ocorrer antes do primeiro await da Promise. */
-export function queuePaintWrite(letter: string, blobPromise: Promise<Blob | null>): Promise<void> {
+export async function getHistory(letter: string): Promise<Blob | undefined> {
+  await awaitPaintWrites(letter);
+  return (await database()).get(STORE, historyKey(letter));
+}
+
+export async function getBase(letter: string): Promise<Blob | undefined> {
+  await awaitPaintWrites(letter);
+  return (await database()).get(STORE, baseKey(letter));
+}
+
+export type LetterPersistSnapshot = {
+  paint: Blob | null;
+  historyJson: string | null;
+  base: Blob | null;
+};
+
+/**
+ * Persiste PNG da grade, histórico JSON e base legada numa única escrita
+ * ordenada (captura síncrona do histórico; blobs async depois).
+ */
+export function queueLetterPersist(
+  letter: string,
+  snapshotPromise: Promise<LetterPersistSnapshot>,
+): Promise<void> {
   const seq = bumpWriteSeq(letter);
   return enqueue(letter, async () => {
-    const blob = await blobPromise;
+    const snapshot = await snapshotPromise;
     if (writeSeq.get(letter) !== seq) return;
     const db = await database();
-    if (blob) await db.put(STORE, blob, paintKey(letter));
+    if (snapshot.paint) await db.put(STORE, snapshot.paint, paintKey(letter));
     else await db.delete(STORE, paintKey(letter));
+
+    if (snapshot.historyJson) {
+      const blob = new Blob([snapshot.historyJson], { type: 'application/json' });
+      await db.put(STORE, blob, historyKey(letter));
+    } else {
+      await db.delete(STORE, historyKey(letter));
+    }
+
+    if (snapshot.base) await db.put(STORE, snapshot.base, baseKey(letter));
+    else await db.delete(STORE, baseKey(letter));
   });
+}
+
+/** @deprecated Preferir queueLetterPersist; mantido para compat pontual. */
+export function queuePaintWrite(letter: string, blobPromise: Promise<Blob | null>): Promise<void> {
+  return queueLetterPersist(
+    letter,
+    blobPromise.then((paint) => ({ paint, historyJson: null, base: null })),
+  );
 }
 
 export function queuePaintDelete(letter: string): Promise<void> {
   const seq = bumpWriteSeq(letter);
   return enqueue(letter, async () => {
     if (writeSeq.get(letter) !== seq) return;
-    await (await database()).delete(STORE, paintKey(letter));
+    const db = await database();
+    await Promise.all([
+      db.delete(STORE, paintKey(letter)),
+      db.delete(STORE, historyKey(letter)),
+      db.delete(STORE, baseKey(letter)),
+    ]);
   });
 }
 

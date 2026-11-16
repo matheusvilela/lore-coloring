@@ -75,6 +75,12 @@ test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }
   expect(undoBox!.height).toBeCloseTo(brushBox!.height, 0);
 });
 
+test('no celular: o divisor some na coluna', async ({ page }) => {
+  await page.setViewportSize({ width: 448, height: 997 });
+  await page.goto('/');
+  await expect(page.locator('.dock__sep--v')).toBeHidden();
+});
+
 test('no desktop largo: pintura à esquerda das ações com divisor no meio', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
