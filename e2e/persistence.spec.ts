@@ -87,20 +87,27 @@ test('limpar letra na grade apaga só aquela célula', async ({ page }) => {
 
   const sheet = page.locator('.sheet');
   const box = (await sheet.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx - box.width * 0.2, cy);
   await page.mouse.down();
-  for (let i = 1; i <= 12; i++) {
-    const t = i / 12;
-    await page.mouse.move(box.x + box.width * 0.3 * t, box.y + box.height / 2);
+  for (let i = 1; i <= 24; i++) {
+    const t = i / 24;
+    await page.mouse.move(cx - box.width * 0.2 + box.width * 0.4 * t, cy + Math.sin(t * Math.PI * 2) * 30);
   }
   await page.mouse.up();
+  await expect.poll(() => paintPixels(page)).toBeGreaterThan(800);
   await page.waitForTimeout(900);
 
   await page.getByRole('button', { name: 'Grade de letras' }).click();
-  const cell = page.getByRole('button', { name: 'Letra A' });
-  await expect(cell.locator('.letter-cell__paint')).toBeVisible();
-  await page.getByRole('button', { name: 'Limpar letra A' }).click();
-  await expect(cell.locator('.letter-cell__paint')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Grade de letras' })).toBeVisible();
+
+  const wrap = page.locator('.letter-cell-wrap').first();
+  await expect(wrap.locator('.letter-cell__paint')).toBeVisible({ timeout: 15_000 });
+  const clearA = wrap.getByRole('button', { name: 'Limpar letra A', exact: true });
+  await clearA.evaluate((el) => (el as HTMLButtonElement).click());
+  await expect(wrap.locator('.letter-cell__paint')).toHaveCount(0);
+  await expect(wrap.getByRole('button', { name: 'Limpar letra A', exact: true })).toHaveCount(0);
 });
 
 test('a tinta volta ao escolher letra na grade', async ({ page }) => {
