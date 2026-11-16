@@ -1,9 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react';
 import {
-  SIZE_LABELS,
   TOOLS,
+  dockSizeDotPx,
+  resolveSize,
   toolUsesSize,
-  type SizeIndex,
   type Tool,
 } from '../canvas/tools';
 import { PALETTE } from '../data/palette';
@@ -13,17 +13,18 @@ const TOOL_LABELS: Record<Tool, string> = {
   crayon: 'Giz de cera',
   eraser: 'Borracha',
   bucket: 'Balde de tinta',
+  move: 'Mover',
 };
 
 type Props = {
   tool: Tool;
   color: string;
-  sizeIndex: SizeIndex;
+  sizeT: number;
   canUndo: boolean;
   canRedo: boolean;
   onTool: (tool: Tool) => void;
   onColor: (hex: string) => void;
-  onSize: (index: SizeIndex) => void;
+  onSizeT: (value: number) => void;
   onUndo: () => void;
   onRedo: () => void;
   onOpenGrid: () => void;
@@ -35,12 +36,12 @@ type Props = {
 export function Dock({
   tool,
   color,
-  sizeIndex,
+  sizeT,
   canUndo,
   canRedo,
   onTool,
   onColor,
-  onSize,
+  onSizeT,
   onUndo,
   onRedo,
   onOpenGrid,
@@ -52,7 +53,12 @@ export function Dock({
   const controlsRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const paintRef = useRef<HTMLDivElement>(null);
+  const sizeAnchorRef = useRef<HTMLDivElement>(null);
   const [stacked, setStacked] = useState(false);
+  const [sizeOpen, setSizeOpen] = useState(false);
+  const popoverId = useId();
+  const previewTool = stillUsesSize ? tool : 'brush';
+  const dotPx = dockSizeDotPx(sizeT, previewTool);
 
   useLayoutEffect(() => {
     const controls = controlsRef.current;
@@ -82,6 +88,26 @@ export function Dock({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    setSizeOpen(false);
+  }, [tool]);
+
+  useEffect(() => {
+    if (!sizeOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || sizeAnchorRef.current?.contains(target)) return;
+      setSizeOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    return () => document.removeEventListener('pointerdown', dismiss);
+  }, [sizeOpen]);
+
+  const pickTool = (item: Tool) => {
+    setSizeOpen(false);
+    onTool(item);
+  };
+
   return (
     <footer className="dock">
       <div className="dock__tools">
@@ -98,27 +124,62 @@ export function Dock({
                   className={`tool${item === tool ? ' is-active' : ''}`}
                   aria-label={TOOL_LABELS[item]}
                   aria-pressed={item === tool}
-                  onClick={() => onTool(item)}
+                  onClick={() => pickTool(item)}
                 >
                   <ToolIcon tool={item} />
                 </button>
               ))}
             </div>
 
-            <div className="sizes" role="group" aria-label="Tamanho do traço">
-              {SIZE_LABELS.map((label, index) => (
-                <button
-                  key={label}
-                  type="button"
-                  className={`size${index === sizeIndex ? ' is-active' : ''}`}
-                  aria-label={`Tamanho ${label}`}
-                  aria-pressed={index === sizeIndex}
-                  disabled={!stillUsesSize}
-                  onClick={() => onSize(index as SizeIndex)}
+            <div ref={sizeAnchorRef} className="dock__size-anchor">
+              <button
+                type="button"
+                className={`tool tool--size${sizeOpen ? ' is-active' : ''}`}
+                aria-label="Tamanho do traço"
+                aria-expanded={sizeOpen}
+                aria-controls={sizeOpen ? popoverId : undefined}
+                disabled={!stillUsesSize}
+                onClick={() => setSizeOpen((open) => !open)}
+              >
+                <SizeIcon dotPx={dotPx} />
+              </button>
+              {sizeOpen && stillUsesSize ? (
+                <div
+                  id={popoverId}
+                  className="size-popover"
+                  role="dialog"
+                  aria-label="Espessura do traço"
+                  onPointerDown={(event) => event.stopPropagation()}
                 >
-                  <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
-                </button>
-              ))}
+                  <div className="size-popover__wedge">
+                    <svg className="size-popover__track" viewBox="0 0 200 40" aria-hidden="true">
+                      <polygon points="8,36 192,6 192,36" fill="currentColor" opacity="0.14" />
+                    </svg>
+                    <input
+                      type="range"
+                      className="size-popover__range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(sizeT * 100)}
+                      aria-valuemin={resolveSize(previewTool, 0)}
+                      aria-valuemax={resolveSize(previewTool, 1)}
+                      aria-valuenow={resolveSize(previewTool, sizeT)}
+                      aria-valuetext={`${resolveSize(previewTool, sizeT)} pixels`}
+                      onChange={(event) => onSizeT(Number(event.target.value) / 100)}
+                    />
+                    <span
+                      className="size-popover__preview"
+                      style={{
+                        width: 8 + sizeT * 18,
+                        height: 8 + sizeT * 18,
+                        left: `${sizeT * 100}%`,
+                      }}
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -180,6 +241,16 @@ export function Dock({
   );
 }
 
+function SizeIcon({ dotPx }: { dotPx: number }) {
+  return (
+    <span
+      className="size-icon"
+      style={{ width: dotPx, height: dotPx }}
+      aria-hidden="true"
+    />
+  );
+}
+
 /**
  * Ícones em 24 px com o mesmo traço 1,9 do balde.
  * Pincel e borracha vêm do Bootstrap Icons (MIT) e do Lucide (ISC); o giz de
@@ -229,6 +300,27 @@ function ToolIcon({ tool }: { tool: Tool }) {
       >
         <path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
         <path d="m5.082 11.09 8.828 8.828" />
+      </svg>
+    );
+  }
+
+  if (tool === 'move') {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        width="26"
+        height="26"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M8 11V6.5a1.5 1.5 0 0 1 3 0V11" />
+        <path d="M11 10.5V5.5a1.5 1.5 0 0 1 3 0V11" />
+        <path d="M14 11V7.5a1.5 1.5 0 0 1 3 0V13" />
+        <path d="M8 11.5c0-1.2-.9-2-2-1.6-.8.3-1.2 1.1-1 1.9l1.2 4.2A4 4 0 0 0 10 19.5h4.2a3.5 3.5 0 0 0 3.3-2.3l.8-2.2" />
       </svg>
     );
   }

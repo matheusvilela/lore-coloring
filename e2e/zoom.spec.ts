@@ -234,3 +234,42 @@ test('a tecla 0 volta ao encaixe; trocar de letra mantém o zoom', async ({ page
   await expect(page.locator('.letter-status')).toHaveText('B');
   expect((await sheetBox(page)).transform).toBe(zoomed.transform);
 });
+
+test('ferramenta mover arrasta a folha ampliada sem pintar', async ({ page }) => {
+  await ready(page);
+  const paintBefore = await paintPixels(page);
+
+  await page.getByRole('button', { name: 'Zoom mais' }).click();
+  const before = await sheetBox(page);
+  expect(before.transform).not.toBe('');
+
+  await page.getByRole('button', { name: 'Mover' }).click();
+  const sheet = page.locator('.sheet');
+  const box = await sheet.boundingBox();
+  expect(box).not.toBeNull();
+  const cx = box!.x + box!.width / 2;
+  const cy = box!.y + box!.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - 90, cy - 50);
+  await page.mouse.up();
+
+  const after = await sheetBox(page);
+  expect(after.transform).not.toBe('');
+  expect(after.transform).not.toBe(before.transform);
+  expect(await paintPixels(page)).toBe(paintBefore);
+});
+
+test('mover em 1x não desloca a folha', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('button', { name: 'Mover' }).click();
+  const box = await page.locator('.sheet').boundingBox();
+  expect(box).not.toBeNull();
+  const cx = box!.x + box!.width / 2;
+  const cy = box!.y + box!.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - 120, cy - 80);
+  await page.mouse.up();
+  expect((await sheetBox(page)).transform).toBe('');
+});

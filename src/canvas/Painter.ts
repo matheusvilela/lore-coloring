@@ -2,7 +2,7 @@ import { assetUrl } from '../data/letters';
 import type { SavedCommand } from './history';
 import { traceStroke, type Point } from './geometry';
 import { grainPattern } from './texture';
-import { resolveSize, type SizeIndex, type Tool } from './tools';
+import { DEFAULT_SIZE_T, resolveSize, type Tool } from './tools';
 
 /** Resolução lógica fixa da camada de pintura. Ver D7 em docs/decisoes.md. */
 export const CANVAS_W = 2048;
@@ -15,7 +15,7 @@ const REGION_H = CANVAS_H / 2;
 /** Id reservado para os píxeis de tinta no mapa de regiões. */
 const INK_REGION = 0xffff;
 
-export type ToolState = { tool: Tool; color: string; sizeIndex: SizeIndex };
+export type ToolState = { tool: Tool; color: string; sizeT: number };
 
 type StrokeCommand = {
   kind: 'stroke';
@@ -102,7 +102,7 @@ export class Painter {
     this.events = events;
     this.tool = initial?.tool ?? 'brush';
     this.color = initial?.color ?? '#D24545';
-    this.size = resolveSize(this.tool, initial?.sizeIndex ?? 1);
+    this.size = resolveSize(this.tool, initial?.sizeT ?? DEFAULT_SIZE_T);
 
     this.paint = this.createLayer('layer layer--paint');
     this.wet = this.createLayer('layer layer--wet');
@@ -126,7 +126,9 @@ export class Painter {
   setTool(state: Partial<ToolState>): void {
     if (state.tool !== undefined) this.tool = state.tool;
     if (state.color !== undefined) this.color = state.color;
-    this.size = resolveSize(this.tool, state.sizeIndex ?? this.sizeIndex());
+    if (state.sizeT !== undefined) {
+      this.size = resolveSize(this.tool, state.sizeT);
+    }
     this.sheet.dataset.tool = this.tool;
   }
 
@@ -360,12 +362,6 @@ export class Painter {
     canvas.className = className;
     this.sheet.appendChild(canvas);
     return canvas;
-  }
-
-  private sizeIndex(): SizeIndex {
-    const px = this.size;
-    if (px <= resolveSize(this.tool, 0)) return 0;
-    return px >= resolveSize(this.tool, 2) ? 2 : 1;
   }
 
   /* ---------- geometria ---------- */
@@ -683,6 +679,8 @@ export class Painter {
   /* ---------- eventos de ponteiro ---------- */
 
   private onPointerDown = (event: PointerEvent): void => {
+    if (this.tool === 'move') return;
+
     // um dedo por vez: o segundo ponteiro é ignorado (rejeição de palma)
     if (this.activePointer !== null) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
