@@ -98,18 +98,34 @@ body {
   top: max(10px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
   z-index: 5;
+  margin: 0;
   padding: 6px 12px;
+  border: 0;
   border-radius: 999px;
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
   color: var(--ink);
   background: var(--glass-bg-strong);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   box-shadow: 0 2px 12px rgba(42, 38, 34, 0.14);
-  pointer-events: none;
+  cursor: pointer;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.zoom-pill:active {
+  transform: scale(0.96);
+}
+
+.zoom-pill:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 .sheet-wrap {
@@ -569,9 +585,11 @@ body {
     grid-row: 2;
   }
 
-  /* abaixo da faixa de ferramentas, ainda no canto do board */
+  /* abaixo da faixa de ferramentas; a altura medida evita cobrir a barra */
   .zoom-pill {
-    top: calc(max(6px, env(safe-area-inset-top)) + 7.75rem);
+    top: calc(
+      var(--dock-tools-bottom, calc(max(6px, env(safe-area-inset-top)) + 135px)) + 8px
+    );
   }
 }
 
