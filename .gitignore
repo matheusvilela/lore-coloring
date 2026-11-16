@@ -1,5 +1,9 @@
 .DS_Store
 node_modules
+
+# este projeto usa npm: package-lock.json é a fonte da verdade
+yarn.lock
+pnpm-lock.yaml
 dist
 _qa
 .tmp-assets

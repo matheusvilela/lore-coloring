@@ -5,11 +5,14 @@
   "type": "module",
   "description": "App de colorir com as letras do Alphabet Lore",
   "scripts": {
+    "predev": "node scripts/preflight.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/preflight.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:assets": "node scripts/build-assets.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",
@@ -23,5 +26,8 @@
     "sharp": "^0.35.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   }
 }
