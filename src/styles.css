@@ -465,8 +465,8 @@ body {
   min-height: 0;
 }
 
-/* 26 letras: 13×2 preenchendo a área útil, células grandes e sem corte nas bordas */
-@media (min-width: 760px) {
+/* Telas largas: 13×2 preenchendo a área útil (até ~756px mantém o grid fluido auto-fill) */
+@media (min-width: 900px) {
   .grid-screen {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
