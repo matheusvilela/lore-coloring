@@ -86,6 +86,11 @@ export class Painter {
   private loadToken = 0;
   private destroyed = false;
 
+  /** Pilhas de desfazer por letra nesta visita (troca A→B→A). */
+  private readonly sessions = new Map<string, Command[]>();
+  /** Letra cuja arte já terminou de carregar na tela. */
+  private settledLetter: string | null = null;
+
   constructor(sheet: HTMLElement, events: PainterEvents = {}, initial?: ToolState) {
     this.sheet = sheet;
     this.events = events;
@@ -119,21 +124,68 @@ export class Painter {
     this.sheet.dataset.tool = this.tool;
   }
 
-  /** Carrega a arte da letra e limpa a pintura e o histórico. */
-  async loadLetter(letter: string): Promise<void> {
+  /**
+   * Antes de trocar de letra: estaciona o histórico da letra atual e invalida
+   * carregamentos assíncronos em andamento. A camada de cor fica intacta para
+   * exportação do PNG da letra que está saindo.
+   */
+  hold(_nextLetter: string): { outgoing: string | null; token: number } {
+    this.commitInProgressGesture();
+    const outgoing = this.settledLetter;
+    if (outgoing !== null) {
+      this.sessions.set(outgoing, this.commands);
+      this.commands = [];
+    }
+    this.settledLetter = null;
     const token = ++this.loadToken;
+    return { outgoing, token };
+  }
 
+  /** Descarta o histórico estacionado de uma letra (ex.: limpar na grade). */
+  discardSession(letter: string): void {
+    const parked = this.sessions.get(letter);
+    if (!parked) return;
+    for (const cmd of parked) {
+      if (cmd.kind === 'bitmap') cmd.bitmap.close();
+    }
+    this.sessions.delete(letter);
+  }
+
+  discardAllSessions(): void {
+    for (const letter of [...this.sessions.keys()]) this.discardSession(letter);
+  }
+
+  /** Carrega a arte da letra; restaura pilha estacionada se existir. */
+  async loadLetter(letter: string, token: number): Promise<{ sessionRestored: boolean }> {
     const [inkImage, regionImage] = await Promise.all([
       loadImage(assetUrl(letter, 'ink.png')),
       loadImage(assetUrl(letter, 'region.png')),
     ]);
-    if (this.destroyed || token !== this.loadToken) return;
+    if (this.destroyed || token !== this.loadToken) return { sessionRestored: false };
 
     this.ictx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     this.ictx.drawImage(inkImage, 0, 0, CANVAS_W, CANVAS_H);
 
     this.readRegions(regionImage);
-    this.reset();
+
+    const sessionRestored = this.sessions.has(letter);
+    if (sessionRestored) {
+      this.commands = this.sessions.get(letter)!;
+      this.sessions.delete(letter);
+      this.current = null;
+      if (this.frame) {
+        cancelAnimationFrame(this.frame);
+        this.frame = 0;
+      }
+      this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+      this.repaint();
+      this.emitHistory();
+    } else {
+      this.reset();
+    }
+
+    this.settledLetter = letter;
+    return { sessionRestored };
   }
 
   undo(): boolean {
@@ -185,8 +237,10 @@ export class Painter {
     return paintLayerHasPixels(this.pctx, CANVAS_W, CANVAS_H);
   }
 
-  /** Restaura a camada de cor a partir de um PNG salvo (histórico da sessão zera). */
-  async restorePaint(blob: Blob): Promise<void> {
+  /** Restaura a camada de cor a partir de um PNG salvo (um passo de desfazer). */
+  async restorePaint(blob: Blob, token: number): Promise<void> {
+    if (this.destroyed || token !== this.loadToken) return;
+
     for (const cmd of this.commands) {
       if (cmd.kind === 'bitmap') cmd.bitmap.close();
     }
@@ -199,6 +253,10 @@ export class Painter {
     this.pctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     const bitmap = await createImageBitmap(blob);
+    if (this.destroyed || token !== this.loadToken) {
+      bitmap.close();
+      return;
+    }
     this.commands = [{ kind: 'bitmap', bitmap }];
     this.pctx.drawImage(bitmap, 0, 0, CANVAS_W, CANVAS_H);
     this.emitHistory();
@@ -214,6 +272,10 @@ export class Painter {
   destroy(): void {
     this.destroyed = true;
     if (this.frame) cancelAnimationFrame(this.frame);
+    this.discardAllSessions();
+    for (const cmd of this.commands) {
+      if (cmd.kind === 'bitmap') cmd.bitmap.close();
+    }
     this.sheet.removeEventListener('pointerdown', this.onPointerDown);
     this.sheet.removeEventListener('pointermove', this.onPointerMove);
     this.sheet.removeEventListener('pointerup', this.onPointerUp);
@@ -493,6 +555,43 @@ export class Painter {
 
   private emitPaintDirty(): void {
     this.events.onPaintDirty?.();
+  }
+
+  /** Finaliza traço/borracha ao sair da letra; balde pendente é cancelado. */
+  private commitInProgressGesture(): void {
+    if (this.pendingFill) {
+      this.pendingFill = null;
+      if (this.activePointer !== null && this.sheet.hasPointerCapture(this.activePointer)) {
+        this.sheet.releasePointerCapture(this.activePointer);
+      }
+      this.activePointer = null;
+      return;
+    }
+
+    if (!this.current) {
+      if (this.activePointer !== null && this.sheet.hasPointerCapture(this.activePointer)) {
+        this.sheet.releasePointerCapture(this.activePointer);
+      }
+      this.activePointer = null;
+      return;
+    }
+
+    const command = this.current;
+    const captureId = this.activePointer;
+    this.activePointer = null;
+    this.current = null;
+    if (captureId !== null && this.sheet.hasPointerCapture(captureId)) {
+      this.sheet.releasePointerCapture(captureId);
+    }
+    if (this.frame) {
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+    }
+    this.wctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+    this.commands.push(command);
+    if (command.kind === 'erase') this.repaint();
+    else this.paintCommand(this.pctx, command);
   }
 
   /* ---------- eventos de ponteiro ---------- */

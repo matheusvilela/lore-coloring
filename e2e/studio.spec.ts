@@ -70,6 +70,58 @@ test('pinta, desfaz e navega entre as letras', async ({ page }) => {
   await expect(page.locator('.letter-status')).toHaveText('Z');
 });
 
+test('desfazer remove um traço depois de voltar à letra', async ({ page }) => {
+  await page.goto('/');
+
+  const sheet = page.locator('.sheet');
+  await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
+
+  const box = (await sheet.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  const drawStroke = async (yOffset: number) => {
+    await page.mouse.move(cx - box.width * 0.2, cy + yOffset);
+    await page.mouse.down();
+    for (let i = 1; i <= 24; i++) {
+      const t = i / 24;
+      await page.mouse.move(
+        cx - box.width * 0.2 + box.width * 0.4 * t,
+        cy + yOffset + Math.sin(t * Math.PI * 2) * 30,
+      );
+    }
+    await page.mouse.up();
+  };
+
+  await drawStroke(-40);
+  await drawStroke(40);
+
+  const bothStrokes = await paintPixels(page);
+  expect(bothStrokes).toBeGreaterThan(2000);
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  await expect(undo).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Próxima letra' }).click();
+  await expect(page.locator('.letter-status')).toHaveText('B');
+  await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
+
+  await page.getByRole('button', { name: 'Letra anterior' }).click();
+  await expect(page.locator('.letter-status')).toHaveText('A');
+  await expect.poll(() => paintPixels(page), { timeout: 10_000 }).toBe(bothStrokes);
+  await expect(undo).toBeEnabled();
+
+  await undo.click();
+  const afterOneUndo = await paintPixels(page);
+  expect(afterOneUndo).toBeGreaterThan(500);
+  expect(afterOneUndo).toBeLessThan(bothStrokes);
+  await expect(undo).toBeEnabled();
+
+  await undo.click();
+  expect(await paintPixels(page)).toBe(0);
+  await expect(undo).toBeDisabled();
+});
+
 test('a tinta nunca é alterada pela pintura', async ({ page }) => {
   await page.goto('/');
   await expect.poll(() => inkPixels(page), { timeout: 10_000 }).toBeGreaterThan(2000);
