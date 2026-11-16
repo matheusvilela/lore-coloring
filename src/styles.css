@@ -162,6 +162,16 @@ body {
   padding: 4px 12px calc(12px + env(safe-area-inset-bottom));
 }
 
+.dock__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dock__colors {
+  display: block;
+}
+
 .dock__row {
   display: flex;
   align-items: center;
@@ -275,6 +285,47 @@ body {
 .swatch.is-active {
   box-shadow: 0 0 0 3px var(--paper), 0 0 0 6px var(--ink),
     inset 0 0 0 1px rgba(42, 38, 34, 0.1);
+}
+
+/* ---------- celular: ferramentas em cima, folha no meio, cores embaixo ---------- */
+
+@media (max-width: 759px) {
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      'tools'
+      'stage'
+      'colors';
+  }
+
+  .dock {
+    display: contents;
+  }
+
+  .dock__tools {
+    grid-area: tools;
+    gap: 6px;
+    padding: max(6px, env(safe-area-inset-top)) 12px 4px;
+  }
+
+  .stage {
+    grid-area: stage;
+  }
+
+  .dock__colors {
+    grid-area: colors;
+    padding: 4px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .dock__row--main {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .dock__row--meta {
+    gap: 8px;
+  }
 }
 
 /* ---------- telas largas: setas nas canaletas, paleta 12 × 2 ---------- */
@@ -432,7 +483,7 @@ body {
   pointer-events: none;
 }
 
-/* ---------- celulares (incl. Pixel 9 Pro XL ~448px): dock em duas linhas ---------- */
+/* ---------- celulares estreitos: controles um pouco menores ---------- */
 
 @media (max-width: 480px) {
   .tools {
@@ -455,24 +506,13 @@ body {
     border-radius: 11px;
   }
 
-  /* ferramentas sozinhas na primeira linha; tamanhos e desfazer na segunda */
-  .tools {
-    flex-basis: 100%;
-    justify-content: center;
+  .tool--meta {
+    width: 44px;
+    height: 44px;
   }
 
   .dock__sep {
     display: none;
-  }
-
-  .dock__row--meta {
-    flex-basis: 100%;
-    justify-content: center;
-  }
-
-  .tool--meta {
-    width: 44px;
-    height: 44px;
   }
 }
 

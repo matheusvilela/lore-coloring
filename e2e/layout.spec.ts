@@ -1,11 +1,23 @@
 import { expect, test } from '@playwright/test';
 
-test('dock em duas linhas no Pixel 9 Pro XL', async ({ page }) => {
+test('no celular: ferramentas em cima, folha no meio, cores embaixo', async ({ page }) => {
   await page.setViewportSize({ width: 448, height: 997 });
   await page.goto('/');
 
-  const flexBasis = await page.locator('.tools').evaluate((el) => getComputedStyle(el).flexBasis);
-  expect(flexBasis).toBe('100%');
+  const tools = page.locator('.dock__tools');
+  const sheet = page.locator('.sheet');
+  const palette = page.locator('.palette');
+
+  const toolsBox = await tools.boundingBox();
+  const sheetBox = await sheet.boundingBox();
+  const paletteBox = await palette.boundingBox();
+
+  expect(toolsBox).not.toBeNull();
+  expect(sheetBox).not.toBeNull();
+  expect(paletteBox).not.toBeNull();
+
+  expect(toolsBox!.y + toolsBox!.height).toBeLessThanOrEqual(sheetBox!.y + 4);
+  expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(paletteBox!.y + 4);
 });
 
 test('undo fica na mesma faixa que os tamanhos no celular largo', async ({ page }) => {

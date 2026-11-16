@@ -45,76 +45,80 @@ export function Dock({
 
   return (
     <footer className="dock">
-      <div className="dock__row dock__row--meta">
-        <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
-          <GridIcon />
-        </button>
-        <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
-          <ClearLetterIcon />
-        </button>
-        <button type="button" className="tool tool--meta" onClick={onClearAll} aria-label="Limpar todas as letras">
-          <ClearAllIcon />
-        </button>
-      </div>
-
-      <div className="dock__row">
-        <div className="tools" role="group" aria-label="Ferramentas">
-          {TOOLS.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={`tool${item === tool ? ' is-active' : ''}`}
-              aria-label={TOOL_LABELS[item]}
-              aria-pressed={item === tool}
-              onClick={() => onTool(item)}
-            >
-              <ToolIcon tool={item} />
-            </button>
-          ))}
-        </div>
-
-        <div className="sizes" role="group" aria-label="Tamanho do traço">
-          {SIZE_LABELS.map((label, index) => (
-            <button
-              key={label}
-              type="button"
-              className={`size${index === sizeIndex ? ' is-active' : ''}`}
-              aria-label={`Tamanho ${label}`}
-              aria-pressed={index === sizeIndex}
-              disabled={!stillUsesSize}
-              onClick={() => onSize(index as SizeIndex)}
-            >
-              <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
-            </button>
-          ))}
-        </div>
-
-        <div className="dock__end">
-          <span className="dock__sep" aria-hidden="true" />
-          <button
-            type="button"
-            className="tool tool--undo"
-            onClick={onUndo}
-            disabled={!canUndo}
-            aria-label="Desfazer"
-          >
-            <UndoIcon />
+      <div className="dock__tools">
+        <div className="dock__row dock__row--meta">
+          <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
+            <GridIcon />
+          </button>
+          <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
+            <ClearLetterIcon />
+          </button>
+          <button type="button" className="tool tool--meta" onClick={onClearAll} aria-label="Limpar todas as letras">
+            <ClearAllIcon />
           </button>
         </div>
+
+        <div className="dock__row dock__row--main">
+          <div className="tools" role="group" aria-label="Ferramentas">
+            {TOOLS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`tool${item === tool ? ' is-active' : ''}`}
+                aria-label={TOOL_LABELS[item]}
+                aria-pressed={item === tool}
+                onClick={() => onTool(item)}
+              >
+                <ToolIcon tool={item} />
+              </button>
+            ))}
+          </div>
+
+          <div className="sizes" role="group" aria-label="Tamanho do traço">
+            {SIZE_LABELS.map((label, index) => (
+              <button
+                key={label}
+                type="button"
+                className={`size${index === sizeIndex ? ' is-active' : ''}`}
+                aria-label={`Tamanho ${label}`}
+                aria-pressed={index === sizeIndex}
+                disabled={!stillUsesSize}
+                onClick={() => onSize(index as SizeIndex)}
+              >
+                <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
+              </button>
+            ))}
+          </div>
+
+          <div className="dock__end">
+            <span className="dock__sep" aria-hidden="true" />
+            <button
+              type="button"
+              className="tool tool--undo"
+              onClick={onUndo}
+              disabled={!canUndo}
+              aria-label="Desfazer"
+            >
+              <UndoIcon />
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="palette" role="group" aria-label="Cores">
-        {PALETTE.map((swatch) => (
-          <button
-            key={swatch.hex}
-            type="button"
-            className={`swatch${swatch.hex === color ? ' is-active' : ''}`}
-            style={{ background: swatch.hex }}
-            aria-label={`Cor ${swatch.name}`}
-            aria-pressed={swatch.hex === color}
-            onClick={() => onColor(swatch.hex)}
-          />
-        ))}
+      <div className="dock__colors">
+        <div className="palette" role="group" aria-label="Cores">
+          {PALETTE.map((swatch) => (
+            <button
+              key={swatch.hex}
+              type="button"
+              className={`swatch${swatch.hex === color ? ' is-active' : ''}`}
+              style={{ background: swatch.hex }}
+              aria-label={`Cor ${swatch.name}`}
+              aria-pressed={swatch.hex === color}
+              onClick={() => onColor(swatch.hex)}
+            />
+          ))}
+        </div>
       </div>
     </footer>
   );
