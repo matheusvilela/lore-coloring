@@ -33,27 +33,86 @@ test('no celular: ações ficam acima das ferramentas de pintura', async ({ page
   expect(undoBox!.y + undoBox!.height).toBeLessThanOrEqual(brushBox!.y + 4);
 });
 
+test('no celular: colunas alinham entre as duas linhas', async ({ page }) => {
+  await page.setViewportSize({ width: 448, height: 997 });
+  await page.goto('/');
+
+  const grid = page.getByRole('button', { name: 'Grade de letras' });
+  const brush = page.getByRole('button', { name: 'Pincel' });
+  const zoomOut = page.getByRole('button', { name: 'Zoom menos' });
+  const clear = page.getByRole('button', { name: 'Limpar letra atual' });
+  const small = page.getByRole('button', { name: 'Tamanho pequeno' });
+  const large = page.getByRole('button', { name: 'Tamanho grande' });
+
+  const gridBox = await grid.boundingBox();
+  const brushBox = await brush.boundingBox();
+  const zoomOutBox = await zoomOut.boundingBox();
+  const clearBox = await clear.boundingBox();
+  const smallBox = await small.boundingBox();
+  const largeBox = await large.boundingBox();
+  expect(gridBox).not.toBeNull();
+  expect(brushBox).not.toBeNull();
+  expect(zoomOutBox).not.toBeNull();
+  expect(clearBox).not.toBeNull();
+  expect(smallBox).not.toBeNull();
+  expect(largeBox).not.toBeNull();
+  expect(gridBox!.x).toBeCloseTo(brushBox!.x, 0);
+  expect(smallBox!.x).toBeCloseTo(zoomOutBox!.x, 0);
+  expect(largeBox!.x + largeBox!.width).toBeCloseTo(clearBox!.x + clearBox!.width, 0);
+});
+
+test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }) => {
+  await page.setViewportSize({ width: 448, height: 997 });
+  await page.goto('/');
+
+  await expect(page.locator('.dock__sep--v')).toBeHidden();
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  const brush = page.getByRole('button', { name: 'Pincel' });
+  const undoBox = await undo.boundingBox();
+  const brushBox = await brush.boundingBox();
+  expect(undoBox!.width).toBeCloseTo(brushBox!.width, 0);
+  expect(undoBox!.height).toBeCloseTo(brushBox!.height, 0);
+});
+
 test('no celular: o divisor some na coluna', async ({ page }) => {
   await page.setViewportSize({ width: 448, height: 997 });
   await page.goto('/');
-  await expect(page.locator('.dock__sep')).toBeHidden();
+  await expect(page.locator('.dock__sep--v')).toBeHidden();
 });
 
-test('no desktop largo: ações e pintura compartilham uma faixa com divisor', async ({ page }) => {
+test('no desktop largo: pintura à esquerda das ações com divisor no meio', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
 
   const undo = page.getByRole('button', { name: 'Desfazer' });
-  const brush = page.getByRole('button', { name: 'Pincel' });
-  const sep = page.locator('.dock__sep');
+  const bucket = page.getByRole('button', { name: 'Balde de tinta' });
+  const sep = page.locator('.dock__sep--v');
 
   const undoBox = await undo.boundingBox();
-  const brushBox = await brush.boundingBox();
+  const bucketBox = await bucket.boundingBox();
+  const sepBox = await sep.boundingBox();
   expect(undoBox).not.toBeNull();
-  expect(brushBox).not.toBeNull();
-  const dy = Math.abs((undoBox?.y ?? 0) - (brushBox?.y ?? 0));
+  expect(bucketBox).not.toBeNull();
+  expect(sepBox).not.toBeNull();
+
+  expect(bucketBox!.x).toBeLessThan(sepBox!.x);
+  expect(sepBox!.x).toBeLessThan(undoBox!.x);
+  const dy = Math.abs((undoBox?.y ?? 0) - (bucketBox?.y ?? 0));
   expect(dy).toBeLessThanOrEqual(8);
   await expect(sep).toBeVisible();
+});
+
+test('no desktop estreito: pintura na linha de cima sem divisor vertical', async ({ page }) => {
+  await page.setViewportSize({ width: 760, height: 900 });
+  await page.goto('/');
+
+  const undo = page.getByRole('button', { name: 'Desfazer' });
+  const brush = page.getByRole('button', { name: 'Pincel' });
+  const undoBox = await undo.boundingBox();
+  const brushBox = await brush.boundingBox();
+  expect(brushBox!.y + brushBox!.height).toBeLessThanOrEqual(undoBox!.y + 4);
+  await expect(page.locator('.dock__sep--v')).toBeHidden();
 });
 
 test('no desktop baixo: controles numa fita horizontal', async ({ page }) => {

@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   SIZE_LABELS,
   TOOLS,
@@ -48,12 +49,82 @@ export function Dock({
   onClearLetter,
 }: Props) {
   const stillUsesSize = toolUsesSize(tool);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const paintRef = useRef<HTMLDivElement>(null);
+  const [stacked, setStacked] = useState(false);
+
+  useLayoutEffect(() => {
+    const controls = controlsRef.current;
+    const actions = actionsRef.current;
+    const paint = paintRef.current;
+    if (!controls || !actions || !paint) return;
+
+    const measure = () => {
+      if (window.matchMedia('(max-width: 759px)').matches) {
+        setStacked(true);
+        return;
+      }
+      const firstAction = actions.querySelector<HTMLElement>('.tool');
+      const firstPaint = paint.querySelector<HTMLElement>('.tool');
+      if (!firstAction || !firstPaint) {
+        setStacked(false);
+        return;
+      }
+      setStacked(Math.abs(firstAction.offsetTop - firstPaint.offsetTop) > 4);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(controls);
+    observer.observe(actions);
+    observer.observe(paint);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <footer className="dock">
       <div className="dock__tools">
-        <div className="dock__controls">
-          <div className="dock__block dock__block--actions">
+        <div
+          ref={controlsRef}
+          className={`dock__controls${stacked ? ' is-stacked' : ' is-inline'}`}
+        >
+          <div ref={paintRef} className="dock__block dock__block--paint">
+            <div className="tools" role="group" aria-label="Ferramentas">
+              {TOOLS.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={`tool${item === tool ? ' is-active' : ''}`}
+                  aria-label={TOOL_LABELS[item]}
+                  aria-pressed={item === tool}
+                  onClick={() => onTool(item)}
+                >
+                  <ToolIcon tool={item} />
+                </button>
+              ))}
+            </div>
+
+            <div className="sizes" role="group" aria-label="Tamanho do traço">
+              {SIZE_LABELS.map((label, index) => (
+                <button
+                  key={label}
+                  type="button"
+                  className={`size${index === sizeIndex ? ' is-active' : ''}`}
+                  aria-label={`Tamanho ${label}`}
+                  aria-pressed={index === sizeIndex}
+                  disabled={!stillUsesSize}
+                  onClick={() => onSize(index as SizeIndex)}
+                >
+                  <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <span className="dock__sep dock__sep--v" aria-hidden="true" />
+
+          <div ref={actionsRef} className="dock__block dock__block--actions">
             <div className="dock__actions" role="group" aria-label="Ações">
               <button type="button" className="tool tool--meta" onClick={onOpenGrid} aria-label="Grade de letras">
                 <GridIcon />
@@ -85,40 +156,6 @@ export function Dock({
               <button type="button" className="tool tool--meta" onClick={onClearLetter} aria-label="Limpar letra atual">
                 <ClearLetterIcon />
               </button>
-            </div>
-            <span className="dock__sep" aria-hidden="true" />
-          </div>
-
-          <div className="dock__block dock__block--paint">
-            <div className="tools" role="group" aria-label="Ferramentas">
-              {TOOLS.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={`tool${item === tool ? ' is-active' : ''}`}
-                  aria-label={TOOL_LABELS[item]}
-                  aria-pressed={item === tool}
-                  onClick={() => onTool(item)}
-                >
-                  <ToolIcon tool={item} />
-                </button>
-              ))}
-            </div>
-
-            <div className="sizes" role="group" aria-label="Tamanho do traço">
-              {SIZE_LABELS.map((label, index) => (
-                <button
-                  key={label}
-                  type="button"
-                  className={`size${index === sizeIndex ? ' is-active' : ''}`}
-                  aria-label={`Tamanho ${label}`}
-                  aria-pressed={index === sizeIndex}
-                  disabled={!stillUsesSize}
-                  onClick={() => onSize(index as SizeIndex)}
-                >
-                  <span className="size__dot" style={{ width: 6 + index * 7, height: 6 + index * 7 }} />
-                </button>
-              ))}
             </div>
           </div>
         </div>

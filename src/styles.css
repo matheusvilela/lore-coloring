@@ -296,11 +296,83 @@ body {
   box-shadow: inset 0 0 0 3px currentColor, 0 3px 10px rgba(42, 38, 34, 0.12);
 }
 
-.dock__sep {
+.dock__sep--v {
   flex-shrink: 0;
+  align-self: center;
   width: 1px;
-  height: 34px;
+  height: 38px;
   background: rgba(42, 38, 34, 0.14);
+}
+
+.dock__controls.is-stacked .dock__sep--v {
+  display: none;
+}
+
+/* duas linhas: 6 colunas — os 3 tamanhos ocupam as duas últimas (mais estreitas) */
+.dock__controls.is-stacked {
+  --dock-cols: 6;
+  --dock-cell: 56px;
+  display: grid;
+  grid-template-columns: repeat(var(--dock-cols), var(--dock-cell));
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.dock__controls.is-stacked::-webkit-scrollbar {
+  display: none;
+}
+
+.dock__controls.is-stacked .dock__block--paint,
+.dock__controls.is-stacked .dock__block--actions,
+.dock__controls.is-stacked .tools,
+.dock__controls.is-stacked .dock__actions {
+  display: contents;
+}
+
+.dock__controls.is-stacked .sizes {
+  display: contents;
+}
+
+.dock__controls.is-stacked .size {
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
+}
+
+.dock__controls.is-stacked .size:nth-child(1) {
+  grid-column: 5;
+  justify-self: start;
+}
+
+.dock__controls.is-stacked .size:nth-child(2) {
+  grid-column: 5 / 7;
+  justify-self: center;
+}
+
+.dock__controls.is-stacked .size:nth-child(3) {
+  grid-column: 6;
+  justify-self: end;
+}
+
+@media (min-width: 760px) {
+  .dock__controls.is-stacked .tools .tool {
+    grid-row: 1;
+  }
+
+  .dock__controls.is-stacked .size {
+    grid-row: 1;
+  }
+
+  .dock__controls.is-stacked .dock__actions .tool {
+    grid-row: 2;
+  }
 }
 
 .sizes {
@@ -426,19 +498,14 @@ body {
   }
 
   .dock__controls {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .dock__sep {
-    display: none;
-  }
-
-  .dock__block--actions,
-  .dock__block--paint {
-    width: 100%;
+    --dock-cols: 6;
+    --dock-cell: 56px;
+    display: grid;
+    grid-template-columns: repeat(var(--dock-cols), var(--dock-cell));
+    gap: 8px;
     justify-content: center;
-    flex-wrap: nowrap;
+    align-items: center;
+    width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
     padding: 2px 0;
@@ -447,9 +514,59 @@ body {
     touch-action: pan-x;
   }
 
-  .dock__block--actions::-webkit-scrollbar,
-  .dock__block--paint::-webkit-scrollbar {
+  .dock__controls::-webkit-scrollbar {
     display: none;
+  }
+
+  .dock__block--paint,
+  .dock__block--actions,
+  .tools,
+  .dock__actions {
+    display: contents;
+  }
+
+  .sizes {
+    display: contents;
+  }
+
+  .dock__controls .size:nth-child(1) {
+    grid-column: 5;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .dock__controls .size:nth-child(2) {
+    grid-column: 5 / 7;
+    grid-row: 2;
+    justify-self: center;
+  }
+
+  .dock__controls .size:nth-child(3) {
+    grid-column: 6;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .dock__sep--v {
+    display: none;
+  }
+
+  .dock__controls .size {
+    width: 30px;
+    height: 30px;
+    border-radius: 11px;
+    flex-shrink: 0;
+  }
+
+  /* celular: ações na linha 1, pintura na linha 2 */
+  .dock__controls.is-stacked .dock__actions .tool,
+  .dock__actions .tool {
+    grid-row: 1;
+  }
+
+  .dock__controls.is-stacked .tools .tool,
+  .tools .tool {
+    grid-row: 2;
   }
 
   /* abaixo da faixa de ferramentas, ainda no canto do board */
@@ -497,8 +614,6 @@ body {
 }
 
 .tool--meta {
-  width: 48px;
-  height: 48px;
   color: #6d655c;
 }
 
@@ -660,19 +775,20 @@ body {
     border-radius: 16px;
   }
 
-  .sizes {
-    gap: 2px;
-  }
-
-  .size {
-    width: 34px;
+  .dock__sep--v {
     height: 34px;
-    border-radius: 11px;
   }
 
-  .tool--meta {
-    width: 44px;
-    height: 44px;
+  .dock__controls,
+  .dock__controls.is-stacked {
+    --dock-cell: 50px;
+  }
+
+  .dock__controls .size,
+  .dock__controls.is-stacked .size {
+    width: 26px;
+    height: 26px;
+    border-radius: 10px;
   }
 }
 
@@ -715,14 +831,25 @@ body {
     border-radius: 14px;
   }
 
+  .dock__sep--v {
+    height: 30px;
+  }
+
+  .dock__controls,
+  .dock__controls.is-stacked {
+    --dock-cell: 44px;
+  }
+
   .tool svg {
     width: 22px;
     height: 22px;
   }
 
-  .size {
-    width: 34px;
-    height: 34px;
+  .dock__controls .size,
+  .dock__controls.is-stacked .size {
+    width: 24px;
+    height: 24px;
+    border-radius: 9px;
   }
 
   /* a altura é o recurso escasso: a paleta vira uma fita horizontal */
