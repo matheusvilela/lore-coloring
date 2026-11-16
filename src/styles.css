@@ -90,6 +90,25 @@ body {
   touch-action: none;
 }
 
+.zoom-pill {
+  position: absolute;
+  top: 10px;
+  right: var(--gutter);
+  z-index: 3;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(42, 38, 34, 0.14);
+  pointer-events: none;
+  user-select: none;
+}
+
 .sheet-wrap {
   display: grid;
   place-items: center;

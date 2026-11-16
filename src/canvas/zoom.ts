@@ -35,14 +35,28 @@ export function usePinchZoom(
   stageRef: RefObject<HTMLElement | null>,
   sheetRef: RefObject<HTMLElement | null>,
   onSecondPointer: () => void,
+  onScaleChange?: (scale: number) => void,
 ) {
   const view = useRef<View>({ scale: 1, x: 0, y: 0 });
+  const scaleListener = useRef(onScaleChange);
+  scaleListener.current = onScaleChange;
+  const scaleNotifyFrame = useRef(0);
   const base = useRef<Base>({ left: 0, top: 0, width: 0, height: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
 
   const secondPointer = useRef(onSecondPointer);
   secondPointer.current = onSecondPointer;
+
+  const emitScale = useCallback(() => {
+    const listener = scaleListener.current;
+    if (!listener) return;
+    if (scaleNotifyFrame.current) cancelAnimationFrame(scaleNotifyFrame.current);
+    scaleNotifyFrame.current = requestAnimationFrame(() => {
+      scaleNotifyFrame.current = 0;
+      listener(view.current.scale);
+    });
+  }, []);
 
   const apply = useCallback(() => {
     const sheet = sheetRef.current;
@@ -53,7 +67,8 @@ export function usePinchZoom(
       scale === 1 && x === 0 && y === 0
         ? ''
         : `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
-  }, [sheetRef]);
+    emitScale();
+  }, [emitScale, sheetRef]);
 
   const reset = useCallback(() => {
     view.current = { scale: 1, x: 0, y: 0 };

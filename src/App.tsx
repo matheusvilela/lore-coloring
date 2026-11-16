@@ -50,6 +50,7 @@ export default function App() {
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [sizeIndex, setSizeIndex] = useState<SizeIndex>(1);
   const [painterReady, setPainterReady] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
 
   const letter = LETTERS[index]!;
   letterRef.current = letter;
@@ -86,7 +87,16 @@ export default function App() {
     painterRef.current?.cancelStroke();
   }, []);
 
-  const { reset: resetZoom, zoomIn, zoomOut } = usePinchZoom(stageRef, sheetRef, cancelStroke);
+  const onZoomScaleChange = useCallback((scale: number) => {
+    setZoomScale((prev) => (Math.abs(prev - scale) < 0.004 ? prev : scale));
+  }, []);
+
+  const { reset: resetZoom, zoomIn, zoomOut } = usePinchZoom(
+    stageRef,
+    sheetRef,
+    cancelStroke,
+    onZoomScaleChange,
+  );
 
   useEffect(() => {
     void requestPersistentStorage();
@@ -241,6 +251,11 @@ export default function App() {
       </p>
 
       <main className="stage" ref={stageRef}>
+        {Math.abs(zoomScale - 1) > 0.01 ? (
+          <span className="zoom-pill" role="status" aria-live="polite">
+            {Math.round(zoomScale * 100)}%
+          </span>
+        ) : null}
         <div
           className="sheet-wrap"
           style={{ width: size.w || undefined, height: size.h || undefined }}

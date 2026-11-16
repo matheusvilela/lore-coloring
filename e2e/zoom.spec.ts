@@ -210,9 +210,12 @@ test('botões de zoom no dock ajustam a folha', async ({ page }) => {
   await expect
     .poll(async () => (await sheetBox(page)).transform)
     .not.toBe('');
+  await expect(page.locator('.zoom-pill')).toBeVisible();
+  await expect(page.locator('.zoom-pill')).not.toHaveText('100%');
 
   await page.keyboard.press('0');
   expect((await sheetBox(page)).transform).toBe('');
+  await expect(page.locator('.zoom-pill')).toHaveCount(0);
 });
 
 test('a tecla 0 volta ao encaixe; trocar de letra mantém o zoom', async ({ page }) => {
