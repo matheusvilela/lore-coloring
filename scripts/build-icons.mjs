@@ -104,16 +104,44 @@ function regionMap(data, w, h, isBarrier) {
   return { labels, regions, w, h };
 }
 
-function regionPBM(labels, regionId, w, h) {
+function regionMask(labels, regionId, w, h, dilate = 0) {
+  const on = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    if (labels[i] === regionId) on[i] = 1;
+  }
+  if (dilate > 0) {
+    const grown = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (!on[y * w + x]) continue;
+        for (let dy = -dilate; dy <= dilate; dy++) {
+          for (let dx = -dilate; dx <= dilate; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) grown[ny * w + nx] = 1;
+          }
+        }
+      }
+    }
+    return grown;
+  }
+  return on;
+}
+
+function maskToPBM(mask, w, h) {
   const rowBytes = Math.ceil(w / 8);
   const buf = Buffer.alloc(rowBytes * h);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const i = y * w + x;
-      if (labels[i] === regionId) buf[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+      if (!mask[y * w + x]) continue;
+      buf[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
     }
   }
   return Buffer.concat([Buffer.from(`P4\n${w} ${h}\n`), buf]);
+}
+
+function regionPBM(labels, regionId, w, h, dilate = 0) {
+  return maskToPBM(regionMask(labels, regionId, w, h, dilate), w, h);
 }
 
 function trace(pbmPath, svgPath) {
@@ -136,7 +164,8 @@ function patchSvg(raw, box, px) {
 
 function inkGroupFromInkSvg(inkRaw) {
   const m = inkRaw.match(/<g[\s\S]*<\/g>/);
-  return m ? m[0] : '';
+  if (!m) return '';
+  return m[0].replace('<g transform=', '<g class="ink" transform=');
 }
 
 function fillColorForRegion(r, buckets) {
@@ -146,7 +175,6 @@ function fillColorForRegion(r, buckets) {
     const idx = buckets.mouth.findIndex((m) => m.id === r.id);
     return COLORS.mouth[idx] ?? COLORS.body;
   }
-  if (buckets.eyes.some((e) => e.id === r.id)) return COLORS.eye;
   return null;
 }
 
@@ -162,30 +190,83 @@ function classifyRegions(regions, w, h) {
   );
   const mouth = [...mouthCandidates].sort((a, b) => a.cx - b.cx).slice(0, 4);
 
-  const pupils = paintable.filter(
+  const pupils = interior.filter(
     (r) =>
       r.id !== body.id &&
       !mouth.some((m) => m.id === r.id) &&
-      r.area < body.area * 0.02 &&
-      r.aspect > 0.55 &&
-      r.aspect < 1.8 &&
-      r.bh / h < 0.06,
+      r.area >= 40 &&
+      r.area < minArea &&
+      r.bw / w < 0.06 &&
+      r.bh / h < 0.05 &&
+      r.cy / h > 0.36 &&
+      r.cy / h < 0.44,
   );
 
-  const eyes = paintable.filter(
+  const eyeSlices = paintable.filter(
     (r) =>
       r.id !== body.id &&
       !mouth.some((m) => m.id === r.id) &&
-      !pupils.some((p) => p.id === r.id),
+      r.bw / w > 0.08 &&
+      r.bw / w < 0.15 &&
+      r.bh / h < 0.08 &&
+      r.aspect < 1.6,
   );
+  const leftEyeIds = eyeSlices.filter((r) => r.cx / w < 0.45).map((r) => r.id);
+  const rightEyeIds = eyeSlices.filter((r) => r.cx / w > 0.55).map((r) => r.id);
 
-  return { body, mouth, pupils, eyes, paintable };
+  const skipEye = new Set([...leftEyeIds, ...rightEyeIds]);
+  const paintableNoEyes = paintable.filter((r) => !skipEye.has(r.id));
+  const traceable = [
+    ...paintableNoEyes,
+    ...pupils.filter((p) => !paintable.some((x) => x.id === p.id)),
+  ];
+
+  return { body, mouth, pupils, leftEyeIds, rightEyeIds, paintable: traceable };
+}
+
+/** Recorta pálpebra (vermelho) e esclera (branco) por olho, ~45% de cima para baixo. */
+function eyeSplitPBM(labels, ids, w, h, lidRatio = 0.45) {
+  let minY = h;
+  let maxY = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const id = labels[y * w + x];
+      if (!ids.includes(id)) continue;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  const splitY = minY + (maxY - minY + 1) * lidRatio;
+  const rowBytes = Math.ceil(w / 8);
+  const lid = Buffer.alloc(rowBytes * h);
+  const white = Buffer.alloc(rowBytes * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const id = labels[y * w + x];
+      if (!ids.includes(id)) continue;
+      const bit = 0x80 >> (x & 7);
+      const o = y * rowBytes + (x >> 3);
+      if (y < splitY) lid[o] |= bit;
+      else white[o] |= bit;
+    }
+  }
+  return {
+    lid: Buffer.concat([Buffer.from(`P4\n${w} ${h}\n`), lid]),
+    white: Buffer.concat([Buffer.from(`P4\n${w} ${h}\n`), white]),
+  };
+}
+
+async function traceColoredMask(pbm, color, name, px) {
+  const pbmPath = path.join(TMP, `${name}.pbm`);
+  const rawSvgPath = path.join(TMP, `${name}.svg`);
+  fs.writeFileSync(pbmPath, pbm);
+  trace(pbmPath, rawSvgPath);
+  const patched = patchSvg(fs.readFileSync(rawSvgPath, 'utf8'), BOX, px);
+  return pathsFromTracedSvg(patched, color);
 }
 
 function colorizeInkGroup(inkGroup) {
-  return inkGroup
-    .replace(/fill="#000000"/g, 'fill="#000000"')
-    .replace(/<g transform=/, '<g class="ink" transform=');
+  return inkGroup;
 }
 
 function pathsFromTracedSvg(patched, fill) {
@@ -198,10 +279,12 @@ function pathsFromTracedSvg(patched, fill) {
 }
 
 async function buildColoredPaths(labels, buckets, w, h, px) {
-  const pieces = [];
+  const base = [];
+  const overlay = [];
   const seen = new Set();
 
   for (const r of buckets.paintable) {
+    if (buckets.pupils.some((p) => p.id === r.id)) continue;
     const fill = fillColorForRegion(r, buckets);
     if (!fill || seen.has(r.id)) continue;
     seen.add(r.id);
@@ -211,21 +294,48 @@ async function buildColoredPaths(labels, buckets, w, h, px) {
     fs.writeFileSync(pbmPath, regionPBM(labels, r.id, w, h));
     trace(pbmPath, rawSvgPath);
     const patched = patchSvg(fs.readFileSync(rawSvgPath, 'utf8'), BOX, px);
-    pieces.push(...pathsFromTracedSvg(patched, fill));
+    base.push(...pathsFromTracedSvg(patched, fill));
   }
-  return pieces;
+
+  for (const [side, ids] of [
+    ['eye-left', buckets.leftEyeIds],
+    ['eye-right', buckets.rightEyeIds],
+  ]) {
+    if (ids.length === 0) continue;
+    const { lid, white } = eyeSplitPBM(labels, ids, w, h);
+    const lidPaths = await traceColoredMask(lid, COLORS.body, `${side}-lid`, px);
+    const whitePaths = await traceColoredMask(white, COLORS.eye, `${side}-white`, px);
+    base.push(...lidPaths, ...whitePaths);
+    overlay.push(...lidPaths);
+  }
+
+  for (const r of buckets.pupils) {
+    const pbmPath = path.join(TMP, `region-${r.id}.pbm`);
+    const rawSvgPath = path.join(TMP, `region-${r.id}.svg`);
+    fs.writeFileSync(pbmPath, regionPBM(labels, r.id, w, h, 2));
+    trace(pbmPath, rawSvgPath);
+    const patched = patchSvg(fs.readFileSync(rawSvgPath, 'utf8'), BOX, px);
+    const pupilPaths = pathsFromTracedSvg(patched, COLORS.pupil);
+    base.push(...pupilPaths);
+    overlay.push(...pupilPaths);
+  }
+
+  return { base, overlay };
 }
 
 const POTRACE_G =
   '<g class="fills" transform="translate(0.000000,251.000000) scale(0.100000,-0.100000)" fill="#000000" stroke="none">';
 
-async function composeSvg(fillPaths, inkGroup) {
+async function composeSvg({ base, overlay }, inkGroup) {
   const viewBox = `${BOX.minX} ${BOX.minY} ${BOX.w} ${BOX.h}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${BOX.w}" height="${BOX.h}" preserveAspectRatio="xMidYMid meet">
 ${POTRACE_G}
-${fillPaths.map((p) => `  ${p}`).join('\n')}
+${base.map((p) => `  ${p}`).join('\n')}
 </g>
 ${colorizeInkGroup(inkGroup)}
+${POTRACE_G.replace('class="fills"', 'class="fills-overlay"')}
+${overlay.map((p) => `  ${p}`).join('\n')}
+</g>
 </svg>`;
 }
 
@@ -262,16 +372,16 @@ async function main() {
   const buckets = classifyRegions(regions, w, h);
 
   log(
-    `regiões pintáveis: ${buckets.paintable.length} · corpo ${buckets.body?.area} · boca ${buckets.mouth.length} · olhos ${buckets.eyes.length} · pupilas ${buckets.pupils.length}`,
+    `regiões pintáveis: ${buckets.paintable.length} · corpo ${buckets.body?.area} · boca ${buckets.mouth.length} · olhos L/R ${buckets.leftEyeIds.length}/${buckets.rightEyeIds.length} · pupilas ${buckets.pupils.length}`,
   );
   if (buckets.mouth.length !== 4) {
     console.warn(`aviso: esperava 4 barras da boca, achei ${buckets.mouth.length}`);
   }
 
   const px = { w: BOX.w, h: BOX.h };
-  const fillPaths = await buildColoredPaths(labels, buckets, w, h, px);
+  const fillLayers = await buildColoredPaths(labels, buckets, w, h, px);
   const inkGroup = inkGroupFromInkSvg(fs.readFileSync(INK_SVG, 'utf8'));
-  const svg = await composeSvg(fillPaths, inkGroup);
+  const svg = await composeSvg(fillLayers, inkGroup);
 
   const iconSvgPath = path.join(OUT_DIR, 'icon.svg');
   fs.writeFileSync(iconSvgPath, svg);
