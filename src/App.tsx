@@ -131,7 +131,6 @@ export default function App() {
   }, []);
 
   useLayoutEffect(() => {
-    if (screen !== 'studio') return;
     const stage = stageRef.current;
     const pager = pagerRef.current;
     if (!stage || !pager) return;
@@ -159,7 +158,7 @@ export default function App() {
     const observer = new ResizeObserver(fit);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, [resetZoom, screen]);
+  }, [resetZoom]);
 
   useEffect(() => {
     painterRef.current?.setTool({ tool, color, sizeIndex });
@@ -180,19 +179,26 @@ export default function App() {
     })();
   }, [letter, index, resetZoom, painterReady]);
 
+  const openGrid = useCallback(() => {
+    void flushSave().then(() => setScreen('grid'));
+  }, [flushSave]);
+
   const pickLetter = useCallback((picked: Letter) => {
     const next = LETTERS.indexOf(picked);
     if (next >= 0) setIndex(next);
     setScreen('studio');
   }, []);
 
-  const go = useCallback((delta: number) => {
-    if (delta > 0 && index === LETTERS.length - 1) {
-      setScreen('grid');
-      return;
-    }
-    setIndex((current) => Math.min(LETTERS.length - 1, Math.max(0, current + delta)));
-  }, [index]);
+  const go = useCallback(
+    (delta: number) => {
+      if (delta > 0 && index === LETTERS.length - 1) {
+        openGrid();
+        return;
+      }
+      setIndex((current) => Math.min(LETTERS.length - 1, Math.max(0, current + delta)));
+    },
+    [index, openGrid],
+  );
 
   const undo = useCallback(() => {
     painterRef.current?.undo();
@@ -231,19 +237,6 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [go, resetZoom, undo]);
-
-  if (screen === 'grid') {
-    return (
-      <div className="app">
-        <LetterGrid
-          current={letter}
-          painted={painted}
-          onPick={pickLetter}
-          onClose={() => setScreen('studio')}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="app">
@@ -293,7 +286,7 @@ export default function App() {
         onColor={setColor}
         onSize={setSizeIndex}
         onUndo={undo}
-        onOpenGrid={() => setScreen('grid')}
+        onOpenGrid={openGrid}
         onClearLetter={clearLetter}
         onClearAll={() => setConfirmClearAll(true)}
       />
@@ -305,6 +298,15 @@ export default function App() {
           confirmLabel="Limpar tudo"
           onCancel={() => setConfirmClearAll(false)}
           onConfirm={clearAll}
+        />
+      ) : null}
+
+      {screen === 'grid' ? (
+        <LetterGrid
+          current={letter}
+          painted={painted}
+          onPick={pickLetter}
+          onClose={() => setScreen('studio')}
         />
       ) : null}
     </div>

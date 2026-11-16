@@ -49,3 +49,16 @@ test('do Z a próxima ação abre a grade', async ({ page }) => {
   await page.getByRole('button', { name: 'Voltar ao desenho' }).click();
   await expect(page.locator('.sheet')).toBeVisible();
 });
+
+test('a tinta volta ao escolher letra na grade', async ({ page }) => {
+  await page.goto('/');
+  await expect.poll(() => countPixels(page, '.layer--ink')).toBeGreaterThan(2000);
+
+  await page.getByRole('button', { name: 'Grade de letras' }).click();
+  await expect(page.getByRole('region', { name: 'Grade de letras' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Letra B' }).click();
+  await expect(page.locator('.sheet')).toBeVisible();
+  await expect(page.locator('.sheet')).toHaveAttribute('data-letter', 'B');
+  await expect.poll(() => countPixels(page, '.layer--ink'), { timeout: 10_000 }).toBeGreaterThan(2000);
+});
