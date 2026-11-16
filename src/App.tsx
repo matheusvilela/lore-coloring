@@ -161,14 +161,13 @@ export default function App() {
 
       const scale = Math.min(width / CANVAS_W, height / CANVAS_H);
       setSize({ w: Math.floor(CANVAS_W * scale), h: Math.floor(CANVAS_H * scale) });
-      resetZoom();
     };
 
     fit();
     const observer = new ResizeObserver(fit);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, [resetZoom]);
+  }, []);
 
   useEffect(() => {
     painterRef.current?.setTool({ tool, color, sizeIndex });
@@ -244,8 +243,10 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [go, resetZoom, undo]);
 
+  const sheetZoomed = Math.abs(zoomScale - 1) > 0.01;
+
   return (
-    <div className="app">
+    <div className={`app${sheetZoomed ? ' app--sheet-zoomed' : ''}`}>
       <p className="letter-status" role="status" aria-live="polite">
         {letter}
       </p>
