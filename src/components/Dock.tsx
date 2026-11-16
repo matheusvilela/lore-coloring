@@ -109,7 +109,7 @@ export function Dock({
   };
 
   return (
-    <footer className="dock">
+    <footer className={stacked ? 'dock' : 'dock is-inline'}>
       <div className="dock__tools">
         <div
           ref={controlsRef}

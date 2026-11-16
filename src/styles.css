@@ -232,6 +232,11 @@ body {
   flex-direction: column;
   gap: 10px;
   padding: 4px 12px calc(12px + env(safe-area-inset-bottom));
+  /* vão do divisor: folga de cada lado + o fio de 1 px */
+  --dock-sep-gap: 10px;
+  --dock-sep-rule: 1px;
+  --dock-align-gap: calc(var(--dock-sep-gap) * 2 + var(--dock-sep-rule));
+  --dock-align-tool: 56px;
 }
 
 .dock__tools {
@@ -249,7 +254,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: var(--dock-sep-gap);
 }
 
 .dock__block--actions {
@@ -307,7 +312,7 @@ body {
 .dock__sep--v {
   flex-shrink: 0;
   align-self: center;
-  width: 1px;
+  width: var(--dock-sep-rule);
   height: 38px;
   background: rgba(42, 38, 34, 0.14);
 }
@@ -571,6 +576,31 @@ body {
     max-width: 720px;
     margin: 0 auto;
     width: 100%;
+  }
+}
+
+/* desktop largo: 12 ferramentas na mesma coluna que as 12 cores.
+   O vão entre botões acompanha o vão atual do divisor (10 + 1 + 10),
+   para o fio não ficar mais estreito que os outros intervalos. */
+@media (min-width: 760px) and (min-height: 561px) {
+  .dock.is-inline .dock__block--paint,
+  .dock.is-inline .tools,
+  .dock.is-inline .dock__actions {
+    gap: var(--dock-align-gap);
+  }
+
+  .dock.is-inline .tool {
+    width: var(--dock-align-tool);
+    height: var(--dock-align-tool);
+  }
+
+  .dock.is-inline .palette {
+    grid-template-columns: repeat(12, var(--dock-align-tool));
+    column-gap: var(--dock-align-gap);
+    row-gap: 8px;
+    width: max-content;
+    max-width: none;
+    margin-inline: auto;
   }
 }
 
