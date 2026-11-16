@@ -25,7 +25,23 @@ type StrokeCommand = {
   pts: Point[];
 };
 type EraseCommand = { kind: 'erase'; size: number; pts: Point[] };
-type FillCommand = { kind: 'fill'; color: string; region: number };
+type FillMask = { canvas: HTMLCanvasElement; x: number; y: number };
+
+type FillCommand = {
+  kind: 'fill';
+  color: string;
+  region: number;
+  /**
+   * Toque em píxeis da pintura. O balde reconstroi a máscara a partir dos
+   * traços anteriores a este comando. Ausente em saves antigos: a região inteira.
+   */
+  at?: Point;
+  /**
+   * Máscara já calculada. `undefined` = ainda não calculada; `null` = o toque
+   * caiu numa parede (traço) e não há o que pintar. Não entra no histórico.
+   */
+  mask?: FillMask | null;
+};
 type Command = StrokeCommand | EraseCommand | FillCommand;
 
 type LetterSession = { commands: Command[]; redo: Command[]; base: ImageBitmap | null };
@@ -77,7 +93,10 @@ export class Painter {
   private regionIds: Uint16Array | null = null;
   private regionBox: Array<Box | undefined> = [];
   /** Máscara recolorível de cada região já usada, em resolução de pintura. */
-  private readonly fillTiles = new Map<number, { canvas: HTMLCanvasElement; x: number; y: number }>();
+  private readonly fillTiles = new Map<number, FillMask>();
+  /** Parede dos traços do usuário, em resolução do mapa de regiões. */
+  private wallCanvas: HTMLCanvasElement | null = null;
+  private wallCtx: CanvasRenderingContext2D | null = null;
   private scratch: HTMLCanvasElement | null = null;
   private scratchCtx: CanvasRenderingContext2D | null = null;
 
@@ -294,9 +313,13 @@ export class Painter {
     if (this.destroyed || token !== this.loadToken) return;
     this.clearRedoStack();
     this.commands = saved.map((cmd) => {
-      if (cmd.kind === 'fill') return { kind: 'fill', color: cmd.color, region: cmd.region };
+      if (cmd.kind === 'fill') {
+        return cmd.at
+          ? { kind: 'fill' as const, color: cmd.color, region: cmd.region, at: { x: cmd.at.x, y: cmd.at.y } }
+          : { kind: 'fill' as const, color: cmd.color, region: cmd.region };
+      }
       return { ...cmd, pts: cmd.pts.map((p) => ({ ...p })) };
-    }) as Command[];
+    });
     this.current = null;
     if (this.frame) {
       cancelAnimationFrame(this.frame);
@@ -310,7 +333,9 @@ export class Painter {
   exportHistory(): SavedCommand[] {
     return this.commands.map((cmd) => {
       if (cmd.kind === 'fill') {
-        return { kind: 'fill', color: cmd.color, region: cmd.region };
+        return cmd.at
+          ? { kind: 'fill', color: cmd.color, region: cmd.region, at: { x: cmd.at.x, y: cmd.at.y } }
+          : { kind: 'fill', color: cmd.color, region: cmd.region };
       }
       return { ...cmd, pts: cmd.pts.map((p) => ({ ...p })) };
     });
@@ -482,7 +507,15 @@ export class Painter {
     const region = ids[ry * REGION_W + rx];
     if (region === INK_REGION) return false; // tocou na linha preta
 
-    const cmd: FillCommand = { kind: 'fill', color: this.color, region };
+    const cmd: FillCommand = {
+      kind: 'fill',
+      color: this.color,
+      region,
+      at: { x: point.x, y: point.y },
+    };
+    // Antes de entrar na pilha: as paredes são só os traços já confirmados.
+    if (!this.fillMask(cmd)) return false;
+
     this.appendCommand(cmd);
     this.applyFill(this.pctx, cmd);
     this.emitHistory();
@@ -559,8 +592,143 @@ export class Painter {
     return tile;
   }
 
+  /**
+   * Parede dos traços já feitos, na resolução do mapa. Pincel e giz viram
+   * cobertura sólida (o grão do giz não é furo). A borracha abre buraco.
+   * Sem dilatação: um vão de um píxel continua aberto. `null` = nenhuma parede.
+   */
+  private strokeWalls(commands: readonly Command[]): Uint8Array | null {
+    if (!commands.some((cmd) => cmd.kind === 'stroke')) return null;
+
+    if (!this.wallCanvas || !this.wallCtx) {
+      this.wallCanvas = document.createElement('canvas');
+      this.wallCanvas.width = REGION_W;
+      this.wallCanvas.height = REGION_H;
+      this.wallCtx = this.wallCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    const ctx = this.wallCtx;
+    if (!ctx) return null;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, REGION_W, REGION_H);
+
+    // Coordenadas do traço estão na pintura (2048). 0,5× cai no mapa.
+    ctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#000';
+    ctx.globalAlpha = 1;
+
+    for (const cmd of commands) {
+      if (cmd.kind === 'stroke') {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = cmd.size;
+        traceStroke(ctx, cmd.pts);
+        ctx.stroke();
+      } else if (cmd.kind === 'erase') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = cmd.size;
+        traceStroke(ctx, cmd.pts);
+        ctx.stroke();
+      }
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const { data } = ctx.getImageData(0, 0, REGION_W, REGION_H);
+    const walls = new Uint8Array(REGION_W * REGION_H);
+    let any = false;
+    for (let i = 0; i < walls.length; i++) {
+      // Franja de antialias abaixo de 50% não fecha vão.
+      if (data[i * 4 + 3]! < 128) continue;
+      walls[i] = 1;
+      any = true;
+    }
+    return any ? walls : null;
+  }
+
+  /**
+   * Máscara deste preenchimento. Saves sem `at` (e toques sem nenhum traço
+   * antes) usam a região inteira. Com traços, o flood para na tinta da letra
+   * e na parede; a dilatação de 1px só entra na tinta, nunca no traço.
+   */
+  private fillMask(cmd: FillCommand): FillMask | null {
+    if (cmd.mask !== undefined) return cmd.mask;
+
+    if (!cmd.at) {
+      cmd.mask = this.fillTile(cmd.region);
+      return cmd.mask;
+    }
+
+    const index = this.commands.indexOf(cmd);
+    const prior = index < 0 ? this.commands : this.commands.slice(0, index);
+    const walls = this.strokeWalls(prior);
+    if (!walls) {
+      cmd.mask = this.fillTile(cmd.region);
+      return cmd.mask;
+    }
+
+    const ids = this.regionIds;
+    if (!ids) {
+      cmd.mask = null;
+      return null;
+    }
+
+    const sx = clamp(Math.floor(cmd.at.x / 2), 0, REGION_W - 1);
+    const sy = clamp(Math.floor(cmd.at.y / 2), 0, REGION_H - 1);
+    const inside = floodInside(ids, walls, sx, sy);
+    cmd.mask = inside ? this.maskFromBits(inside) : null;
+    return cmd.mask;
+  }
+
+  /** Sobe a máscara do flood (resolução do mapa) para a pintura, 2× exato. */
+  private maskFromBits(inside: Uint8Array): FillMask | null {
+    let x0 = REGION_W;
+    let y0 = REGION_H;
+    let x1 = -1;
+    let y1 = -1;
+    for (let i = 0; i < inside.length; i++) {
+      if (!inside[i]) continue;
+      const x = i % REGION_W;
+      const y = (i / REGION_W) | 0;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return null;
+
+    const w = x1 - x0 + 1;
+    const h = y1 - y0 + 1;
+    const canvas = document.createElement('canvas');
+    canvas.width = w * 2;
+    canvas.height = h * 2;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const img = ctx.createImageData(canvas.width, canvas.height);
+    const d = img.data;
+    for (let ry = 0; ry < h; ry++) {
+      for (let rx = 0; rx < w; rx++) {
+        if (!inside[(y0 + ry) * REGION_W + (x0 + rx)]) continue;
+        for (let sy = 0; sy < 2; sy++) {
+          for (let sx = 0; sx < 2; sx++) {
+            const o = ((ry * 2 + sy) * canvas.width + (rx * 2 + sx)) * 4;
+            d[o] = 255;
+            d[o + 1] = 255;
+            d[o + 2] = 255;
+            d[o + 3] = 255;
+          }
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return { canvas, x: x0 * 2, y: y0 * 2 };
+  }
+
   private applyFill(ctx: CanvasRenderingContext2D, cmd: FillCommand): void {
-    const tile = this.fillTile(cmd.region);
+    const tile = this.fillMask(cmd);
     if (!tile) return;
 
     const { width, height } = tile.canvas;
@@ -808,6 +976,66 @@ function clamp(value: number, min: number, max: number): number {
 
 function prevent(event: Event): void {
   event.preventDefault();
+}
+
+/**
+ * Componente 4-conexo a partir do toque, parado na tinta da letra e na parede
+ * do traço. A dilatação de 1px entra só na tinta (a linha preta cobre isso);
+ * nunca no traço, que mora na mesma camada que a cor.
+ */
+function floodInside(ids: Uint16Array, walls: Uint8Array, sx: number, sy: number): Uint8Array | null {
+  const start = sy * REGION_W + sx;
+  if (ids[start] === INK_REGION || walls[start]) return null;
+
+  const filled = new Uint8Array(ids.length);
+  const stack = new Int32Array(ids.length);
+  let n = 0;
+  stack[n++] = start;
+  filled[start] = 1;
+
+  const push = (j: number): void => {
+    if (filled[j] || ids[j] === INK_REGION || walls[j]) return;
+    filled[j] = 1;
+    stack[n++] = j;
+  };
+
+  while (n > 0) {
+    const i = stack[--n]!;
+    const x = i % REGION_W;
+    const y = (i / REGION_W) | 0;
+    if (x > 0) push(i - 1);
+    if (x + 1 < REGION_W) push(i + 1);
+    if (y > 0) push(i - REGION_W);
+    if (y + 1 < REGION_H) push(i + REGION_W);
+  }
+
+  const inside = new Uint8Array(ids.length);
+  inside.set(filled);
+
+  for (let y = 0; y < REGION_H; y++) {
+    const row = y * REGION_W;
+    for (let x = 0; x < REGION_W; x++) {
+      const i = row + x;
+      if (filled[i] || ids[i] !== INK_REGION) continue;
+      let touch = false;
+      for (let dy = -1; dy <= 1 && !touch; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= REGION_H) continue;
+        const nrow = ny * REGION_W;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= REGION_W) continue;
+          if (filled[nrow + nx]) {
+            touch = true;
+            break;
+          }
+        }
+      }
+      if (touch) inside[i] = 1;
+    }
+  }
+
+  return inside;
 }
 
 function paintLayerHasPixels(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {

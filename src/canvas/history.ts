@@ -10,7 +10,16 @@ export type SavedStroke = {
 
 export type SavedErase = { kind: 'erase'; size: number; pts: Point[] };
 
-export type SavedFill = { kind: 'fill'; color: string; region: number };
+export type SavedFill = {
+  kind: 'fill';
+  color: string;
+  region: number;
+  /**
+   * Toque em píxeis da pintura. Ausente em saves antigos: o balde preenche
+   * a região inteira, como antes dos traços virarem parede.
+   */
+  at?: Point;
+};
 
 export type SavedCommand = SavedStroke | SavedErase | SavedFill;
 
@@ -35,8 +44,21 @@ export function parseSavedHistory(json: string): SavedCommand[] {
       out.push({ kind: 'erase', size: row.size, pts: row.pts as Point[] });
     } else if (row.kind === 'fill') {
       if (typeof row.color !== 'string' || typeof row.region !== 'number') continue;
-      out.push({ kind: 'fill', color: row.color, region: row.region });
+      const at = parsePoint(row.at);
+      out.push(
+        at
+          ? { kind: 'fill', color: row.color, region: row.region, at }
+          : { kind: 'fill', color: row.color, region: row.region },
+      );
     }
   }
   return out;
+}
+
+function parsePoint(value: unknown): Point | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const point = value as Record<string, unknown>;
+  if (typeof point.x !== 'number' || typeof point.y !== 'number') return undefined;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return undefined;
+  return { x: point.x, y: point.y };
 }
