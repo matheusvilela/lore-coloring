@@ -41,18 +41,24 @@ test('no celular: colunas alinham entre as duas linhas', async ({ page }) => {
   const brush = page.getByRole('button', { name: 'Pincel' });
   const zoomOut = page.getByRole('button', { name: 'Zoom menos' });
   const clear = page.getByRole('button', { name: 'Limpar letra atual' });
-  const sizes = page.locator('.sizes');
+  const small = page.getByRole('button', { name: 'Tamanho pequeno' });
+  const large = page.getByRole('button', { name: 'Tamanho grande' });
 
   const gridBox = await grid.boundingBox();
   const brushBox = await brush.boundingBox();
   const zoomOutBox = await zoomOut.boundingBox();
   const clearBox = await clear.boundingBox();
-  const sizesBox = await sizes.boundingBox();
+  const smallBox = await small.boundingBox();
+  const largeBox = await large.boundingBox();
   expect(gridBox).not.toBeNull();
   expect(brushBox).not.toBeNull();
+  expect(zoomOutBox).not.toBeNull();
+  expect(clearBox).not.toBeNull();
+  expect(smallBox).not.toBeNull();
+  expect(largeBox).not.toBeNull();
   expect(gridBox!.x).toBeCloseTo(brushBox!.x, 0);
-  expect(zoomOutBox!.x).toBeCloseTo(sizesBox!.x, 0);
-  expect(clearBox!.x + clearBox!.width).toBeCloseTo(sizesBox!.x + sizesBox!.width, 0);
+  expect(smallBox!.x).toBeCloseTo(zoomOutBox!.x, 0);
+  expect(largeBox!.x + largeBox!.width).toBeCloseTo(clearBox!.x + clearBox!.width, 0);
 });
 
 test('no celular: botões de ação e pintura do mesmo tamanho', async ({ page }) => {

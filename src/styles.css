@@ -337,18 +337,28 @@ body {
 }
 
 .dock__controls.is-stacked .sizes {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  grid-column: 5 / span 2;
+  display: contents;
 }
 
 .dock__controls.is-stacked .size {
   width: 30px;
   height: 30px;
   border-radius: 11px;
-  flex-shrink: 0;
+}
+
+.dock__controls.is-stacked .size:nth-child(1) {
+  grid-column: 5;
+  justify-self: start;
+}
+
+.dock__controls.is-stacked .size:nth-child(2) {
+  grid-column: 5 / 7;
+  justify-self: center;
+}
+
+.dock__controls.is-stacked .size:nth-child(3) {
+  grid-column: 6;
+  justify-self: end;
 }
 
 @media (min-width: 760px) {
@@ -356,7 +366,7 @@ body {
     grid-row: 1;
   }
 
-  .dock__controls.is-stacked .sizes {
+  .dock__controls.is-stacked .size {
     grid-row: 1;
   }
 
@@ -516,12 +526,25 @@ body {
   }
 
   .sizes {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    grid-column: 5 / span 2;
+    display: contents;
+  }
+
+  .dock__controls .size:nth-child(1) {
+    grid-column: 5;
     grid-row: 2;
+    justify-self: start;
+  }
+
+  .dock__controls .size:nth-child(2) {
+    grid-column: 5 / 7;
+    grid-row: 2;
+    justify-self: center;
+  }
+
+  .dock__controls .size:nth-child(3) {
+    grid-column: 6;
+    grid-row: 2;
+    justify-self: end;
   }
 
   .dock__sep--v {
@@ -759,10 +782,6 @@ body {
   .dock__controls,
   .dock__controls.is-stacked {
     --dock-cell: 50px;
-  }
-
-  .dock__controls .sizes {
-    gap: 2px;
   }
 
   .dock__controls .size,
