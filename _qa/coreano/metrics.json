@@ -1,0 +1,342 @@
+{
+  "lang": "coreano",
+  "source": {
+    "w": 309,
+    "h": 236
+  },
+  "box": {
+    "minX": 1,
+    "minY": 24,
+    "maxX": 307,
+    "maxY": 211,
+    "w": 307,
+    "h": 188
+  },
+  "px": {
+    "w": 2048,
+    "h": 1254
+  },
+  "total": 2406778,
+  "metrics": [
+    {
+      "letter": "giyeok",
+      "paths": 3,
+      "regions": 6,
+      "paintable": 4,
+      "largestPct": 7.6,
+      "bytes": 54079
+    },
+    {
+      "letter": "nieun",
+      "paths": 2,
+      "regions": 6,
+      "paintable": 2,
+      "largestPct": 9,
+      "bytes": 42585
+    },
+    {
+      "letter": "digeut",
+      "paths": 1,
+      "regions": 10,
+      "paintable": 7,
+      "largestPct": 10,
+      "bytes": 48350
+    },
+    {
+      "letter": "rieul",
+      "paths": 12,
+      "regions": 11,
+      "paintable": 8,
+      "largestPct": 2.3,
+      "bytes": 66974
+    },
+    {
+      "letter": "mieum",
+      "paths": 3,
+      "regions": 8,
+      "paintable": 5,
+      "largestPct": 10.9,
+      "bytes": 57179
+    },
+    {
+      "letter": "bieup",
+      "paths": 4,
+      "regions": 9,
+      "paintable": 7,
+      "largestPct": 12.2,
+      "bytes": 87353
+    },
+    {
+      "letter": "siot",
+      "paths": 1,
+      "regions": 9,
+      "paintable": 4,
+      "largestPct": 3.3,
+      "bytes": 53969
+    },
+    {
+      "letter": "ieung",
+      "paths": 4,
+      "regions": 15,
+      "paintable": 3,
+      "largestPct": 11,
+      "bytes": 78458
+    },
+    {
+      "letter": "jieut",
+      "paths": 2,
+      "regions": 13,
+      "paintable": 6,
+      "largestPct": 11.4,
+      "bytes": 87274
+    },
+    {
+      "letter": "chieut",
+      "paths": 3,
+      "regions": 10,
+      "paintable": 6,
+      "largestPct": 6.2,
+      "bytes": 73004
+    },
+    {
+      "letter": "kieuk",
+      "paths": 1,
+      "regions": 8,
+      "paintable": 4,
+      "largestPct": 10.1,
+      "bytes": 45935
+    },
+    {
+      "letter": "tieut",
+      "paths": 2,
+      "regions": 17,
+      "paintable": 10,
+      "largestPct": 2.9,
+      "bytes": 65789
+    },
+    {
+      "letter": "pieup",
+      "paths": 3,
+      "regions": 9,
+      "paintable": 6,
+      "largestPct": 9,
+      "bytes": 69477
+    },
+    {
+      "letter": "hieut",
+      "paths": 3,
+      "regions": 10,
+      "paintable": 6,
+      "largestPct": 5.2,
+      "bytes": 55168
+    },
+    {
+      "letter": "a",
+      "paths": 3,
+      "regions": 5,
+      "paintable": 2,
+      "largestPct": 5.6,
+      "bytes": 45026
+    },
+    {
+      "letter": "ya",
+      "paths": 3,
+      "regions": 8,
+      "paintable": 3,
+      "largestPct": 5.5,
+      "bytes": 48217
+    },
+    {
+      "letter": "eo",
+      "paths": 2,
+      "regions": 7,
+      "paintable": 2,
+      "largestPct": 5.7,
+      "bytes": 44567
+    },
+    {
+      "letter": "yeo",
+      "paths": 2,
+      "regions": 4,
+      "paintable": 2,
+      "largestPct": 6.2,
+      "bytes": 44837
+    },
+    {
+      "letter": "o",
+      "paths": 3,
+      "regions": 5,
+      "paintable": 3,
+      "largestPct": 6.6,
+      "bytes": 41064
+    },
+    {
+      "letter": "yo",
+      "paths": 3,
+      "regions": 6,
+      "paintable": 4,
+      "largestPct": 6.7,
+      "bytes": 49842
+    },
+    {
+      "letter": "u",
+      "paths": 3,
+      "regions": 9,
+      "paintable": 4,
+      "largestPct": 6.4,
+      "bytes": 49911
+    },
+    {
+      "letter": "yu",
+      "paths": 1,
+      "regions": 8,
+      "paintable": 5,
+      "largestPct": 6.6,
+      "bytes": 51780
+    },
+    {
+      "letter": "eu",
+      "paths": 2,
+      "regions": 6,
+      "paintable": 3,
+      "largestPct": 6.1,
+      "bytes": 44050
+    },
+    {
+      "letter": "i",
+      "paths": 2,
+      "regions": 16,
+      "paintable": 1,
+      "largestPct": 4.6,
+      "bytes": 54322
+    },
+    {
+      "letter": "ssang-giyeok",
+      "paths": 2,
+      "regions": 15,
+      "paintable": 9,
+      "largestPct": 7.7,
+      "bytes": 80257
+    },
+    {
+      "letter": "ssang-digeut",
+      "paths": 3,
+      "regions": 14,
+      "paintable": 7,
+      "largestPct": 8.6,
+      "bytes": 84383
+    },
+    {
+      "letter": "ssang-bieup",
+      "paths": 7,
+      "regions": 11,
+      "paintable": 6,
+      "largestPct": 9.4,
+      "bytes": 82421
+    },
+    {
+      "letter": "ssang-siot",
+      "paths": 1,
+      "regions": 20,
+      "paintable": 5,
+      "largestPct": 4.6,
+      "bytes": 77123
+    },
+    {
+      "letter": "ssang-jieut",
+      "paths": 5,
+      "regions": 13,
+      "paintable": 3,
+      "largestPct": 14.4,
+      "bytes": 81100
+    },
+    {
+      "letter": "ae",
+      "paths": 2,
+      "regions": 10,
+      "paintable": 5,
+      "largestPct": 11.3,
+      "bytes": 60543
+    },
+    {
+      "letter": "yae",
+      "paths": 1,
+      "regions": 7,
+      "paintable": 3,
+      "largestPct": 6.3,
+      "bytes": 56596
+    },
+    {
+      "letter": "e",
+      "paths": 2,
+      "regions": 5,
+      "paintable": 4,
+      "largestPct": 5.7,
+      "bytes": 53774
+    },
+    {
+      "letter": "ye",
+      "paths": 1,
+      "regions": 5,
+      "paintable": 4,
+      "largestPct": 6.7,
+      "bytes": 51275
+    },
+    {
+      "letter": "wa",
+      "paths": 1,
+      "regions": 14,
+      "paintable": 5,
+      "largestPct": 5.4,
+      "bytes": 57971
+    },
+    {
+      "letter": "wae",
+      "paths": 2,
+      "regions": 11,
+      "paintable": 5,
+      "largestPct": 10.4,
+      "bytes": 75923
+    },
+    {
+      "letter": "oe",
+      "paths": 1,
+      "regions": 5,
+      "paintable": 4,
+      "largestPct": 4.3,
+      "bytes": 54590
+    },
+    {
+      "letter": "wo",
+      "paths": 6,
+      "regions": 15,
+      "paintable": 7,
+      "largestPct": 2.8,
+      "bytes": 64089
+    },
+    {
+      "letter": "we",
+      "paths": 3,
+      "regions": 13,
+      "paintable": 5,
+      "largestPct": 5.3,
+      "bytes": 65717
+    },
+    {
+      "letter": "wi",
+      "paths": 2,
+      "regions": 12,
+      "paintable": 7,
+      "largestPct": 1.9,
+      "bytes": 56568
+    },
+    {
+      "letter": "ui",
+      "paths": 2,
+      "regions": 7,
+      "paintable": 4,
+      "largestPct": 4.6,
+      "bytes": 45238
+    }
+  ]
+}

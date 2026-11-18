@@ -1,4 +1,9 @@
 {
+  "lang": "latin",
+  "source": {
+    "w": 329,
+    "h": 251
+  },
   "box": {
     "minX": 10,
     "minY": 10,

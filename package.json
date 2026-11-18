@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "build:assets": "node scripts/build-assets.mjs",
+    "crop:coreano": "node scripts/crop-coreano.mjs",
     "build:icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {

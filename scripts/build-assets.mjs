@@ -2,26 +2,64 @@
 /**
  * Pipeline de assets do lore-coloring.
  *
- * Entrada : assets-src/letras/{A..Z}.png  (329x251, fundo branco, traço preto)
- * Saída   : public/letras/{A..Z}/
+ * Entrada : assets-src/<idioma>/{<letra>.png}  (uma imagem por letra, mesmo
+ *           canvas para todas, fundo branco)
+ * Saída   : public/<idioma>/<letra>/
  *             ink.svg     fonte vetorial (viewBox = bbox compartilhado)
  *             ink.png     preto + alpha, 2048x1562 (metade do canvas de pintura)
  *             region.png  mapa de regiões do balde, 1024x781 (R+G = id)
  *             thumb.webp  miniatura para a grade
- *           _qa/prancha.png  prancha de contato para aprovação visual
+ *           _qa/.../prancha.png  prancha de contato para aprovação visual
  *
- * Uso: node scripts/build-assets.mjs
+ * Idiomas:
+ *   latin   A–Z, arte já em traço preto (lê direto a luminância)
+ *   coreano 40 jamo, arte colorida (extrai só o traço preto antes de vetorizar)
+ *
+ * Uso: node scripts/build-assets.mjs [latin|coreano|all]
  * Requer: potrace (Homebrew) e sharp (devDependency).
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
+import { JAMO } from './coreano-jamo.mjs';
 
-const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-const SRC = 'assets-src/letras';
-const OUT = 'public/letras';
-const QA = '_qa';
+const LANGS = {
+  latin: {
+    src: 'assets-src/letras',
+    out: 'public/letras',
+    qa: '_qa',
+    letters: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((id) => ({ id, label: id })),
+    ink: 'dark',
+  },
+  coreano: {
+    src: 'assets-src/coreano',
+    out: 'public/coreano',
+    qa: '_qa/coreano',
+    letters: JAMO.map((j, i) => ({ id: j.name, label: `${i + 1}. ${j.name} ${j.glyph}` })),
+    ink: 'stroke',
+    // Adereços da arte que não fazem parte da letra: saem do traço, mas ficam no
+    // recorte colorido (a conferência e a prova de recorte continuam valendo).
+    // Coordenadas no recorte, 309 × 236.
+    drop: {
+      kieuk: [{ x0: 129, y0: 41, x1: 166, y1: 64 }],            // "whoosh" acima da letra
+      jieut: [
+        { x0: 62, y0: 51, x1: 113, y1: 70 },                     // palavra "WAND"
+        { x0: 78, y0: 71, x1: 91, y1: 93 },                      // seta; a varinha fica
+      ],
+    },
+    // Preenchimentos coloridos que viram contorno fino em vez de sumir: a pupila
+    // magenta do `ㅉ` não tem linha nenhuma no original, mas sem ela o olho fica
+    // vazio. O anel é desenhado por fora da forma, então o miolo fica branco.
+    outline: {
+      'ssang-giyeok': [
+        { x0: 70, y0: 68, x1: 91, y1: 81 },                      // pupila esquerda
+        { x0: 140, y0: 67, x1: 159, y1: 81 },                    // pupila direita
+      ],
+    },
+  },
+};
+
 const TMP = '.tmp-assets';
 
 const CANVAS = { w: 2048, h: 1562 };          // resolução da camada de pintura
@@ -29,7 +67,383 @@ const REGION = { w: 1024, h: 781 };           // metade exata de CANVAS
 const THRESHOLD = 128;                        // < 128 = tinta
 const PAD = 6;                                // folga no bbox compartilhado (px na fonte)
 
+/**
+ * Traço da arte colorida: o contorno é preto puro (#000000/#010101) e os
+ * preenchimentos mais escuros começam em #1a1621 — então canal máximo ≤ 24
+ * separa contorno de preenchimento com folga de 9 níveis. Os poucos pixels
+ * tingidos que passam são a franja de antialiasing do próprio contorno.
+ */
+const STROKE_MAX = 24;
+
 const log = (...a) => console.log(...a);
+
+/* ---------- 0. preparo da tinta ---------- */
+
+/**
+ * Objeto desenhado só em valor: cinza neutro (sem matiz), fora de qualquer
+ * área fechada por preto e com área relevante. As latas do `ㅛ` são o caso
+ * real — sem contorno preto, encostadas nas laterais da letra, escondendo a
+ * borda vertical do corpo. Sombras internas (olho do `ㅗ`, lente do `ㅟ`) são
+ * cinza **cercado** por preto e ficam de fora, assim como a franja de
+ * antialiasing (cinza colado no preto).
+ *
+ * O objeto em si não entra no traço: ele tapa a borda da letra, então o que se
+ * desenha é a **borda que faltava** — uma reta do lado voltado para o corpo,
+ * ligando as duas pontas de traço que terminam no objeto.
+ */
+const GREY_MAX = 253;       // branco da folha é 255; 246–253 ainda é corpo da lata
+const GREY_NEUTRAL = 8;     // matiz: cinza é max−min ≤ 8
+const GREY_MIN_AREA = 200;  // abaixo disso é ruído/sobra, não objeto
+const CLOSE_STROKE = 5;     // espessura da borda gerada (= traço do corpo na fonte)
+const CLOSE_BAND = 7;       // alcance da busca pelas pontas de traço existentes
+
+/** Cor de preenchimento (o miolo colorido da letra), não a franja de AA. */
+const FILL_MIN_SAT = 40;    // matiz mínima do miolo
+const FILL_MIN_VALUE = 80;  // o miolo não é escuro
+const FILL_MIN_AREA = 1500; // adereço colorido é menor que isso
+const OUTLINE_RING = 1;     // espessura (px da fonte) do contorno fino gerado
+
+const dilate = (src, w, h, r) => {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!src[y * w + x]) continue;
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          if (nx >= 0 && nx < w) out[ny * w + nx] = 1;
+        }
+      }
+    }
+  }
+  return out;
+};
+
+/** Pixels alcançáveis da borda sem atravessar preto (o "lado de fora" da arte). */
+function outsideOf(black, w, h) {
+  const outside = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let sp = 0;
+  const seed = (i) => {
+    if (!black[i] && !outside[i]) { outside[i] = 1; stack[sp++] = i; }
+  };
+  for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
+  while (sp > 0) {
+    const i = stack[--sp];
+    const x = i % w;
+    const y = (i / w) | 0;
+    if (x > 0) seed(i - 1);
+    if (x < w - 1) seed(i + 1);
+    if (y > 0) seed(i - w);
+    if (y < h - 1) seed(i + w);
+  }
+  return outside;
+}
+
+/**
+ * Retas que fecham a letra onde um objeto cinza tapou a borda: uma barra de
+ * CLOSE_STROKE px no lado do objeto voltado para o corpo, cobrindo do começo ao
+ * fim das pontas de traço que encostam nele. Devolve também o que **apagar**:
+ * a sobra das pontas que passava por baixo do objeto (sem isso o canto fica com
+ * a ponta arredondada antiga grudada na reta nova).
+ */
+function greyObjectClosers(data, w, h, CH) {
+  const black = new Uint8Array(w * h);
+  const grey = new Uint8Array(w * h);
+  let sumX = 0, sumY = 0, bodyPx = 0; // centroide do corpo (preto + colorido)
+  for (let i = 0; i < w * h; i++) {
+    const o = i * CH;
+    const r = data[o], g = data[o + 1], b = data[o + 2];
+    const mx = Math.max(r, g, b);
+    black[i] = mx <= STROKE_MAX ? 1 : 0;
+    grey[i] = !black[i] && mx <= GREY_MAX && mx - Math.min(r, g, b) <= GREY_NEUTRAL ? 1 : 0;
+    if (!black[i] && mx - Math.min(r, g, b) > GREY_NEUTRAL) {
+      sumX += i % w;
+      sumY += (i / w) | 0;
+      bodyPx++;
+    }
+  }
+  // franja de antialiasing: cinza a até 2 px do preto não é objeto
+  const nearBlack = dilate(black, w, h, 2);
+  for (let i = 0; i < w * h; i++) if (nearBlack[i]) grey[i] = 0;
+
+  const outside = outsideOf(black, w, h);
+
+  // componentes: fica só o que é exposto (não cercado por preto) e grande
+  const label = new Int32Array(w * h).fill(-1);
+  const stack = new Int32Array(w * h);
+  const objects = [];
+  for (let start = 0; start < w * h; start++) {
+    if (!grey[start] || label[start] !== -1) continue;
+    let sp = 0;
+    stack[sp++] = start;
+    label[start] = start;
+    let area = 0, exposed = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+    while (sp > 0) {
+      const i = stack[--sp];
+      const x = i % w;
+      const y = (i / w) | 0;
+      area++;
+      if (outside[i]) exposed++;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= w) continue;
+          const j = ny * w + nx;
+          if (grey[j] && label[j] === -1) { label[j] = start; stack[sp++] = j; }
+        }
+      }
+    }
+    if (area >= GREY_MIN_AREA && exposed * 2 >= area) objects.push({ x0, y0, x1, y1 });
+  }
+
+  const closers = new Uint8Array(w * h);
+  const trim = new Uint8Array(w * h);
+  if (objects.length === 0 || bodyPx === 0) return { closers, trim };
+  const cx = sumX / bodyPx;
+  const cy = sumY / bodyPx;
+
+  const blackIn = (bx0, by0, bx1, by1) => {
+    const pts = [];
+    for (let y = Math.max(0, by0); y <= Math.min(h - 1, by1); y++) {
+      for (let x = Math.max(0, bx0); x <= Math.min(w - 1, bx1); x++) {
+        if (black[y * w + x]) pts.push({ x, y });
+      }
+    }
+    return pts;
+  };
+  const paint = (target, x0, y0, x1, y1) => {
+    for (let y = Math.max(0, y0); y <= Math.min(h - 1, y1); y++) {
+      for (let x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) target[y * w + x] = 1;
+    }
+  };
+
+  for (const o of objects) {
+    const dx = cx - (o.x0 + o.x1) / 2;
+    const dy = cy - (o.y0 + o.y1) / 2;
+    const vertical = Math.abs(dx) >= Math.abs(dy);
+    const right = dx > 0;
+    // pontas de traço do lado do corpo, dentro da faixa
+    const pts = vertical
+      ? blackIn(right ? o.x1 + 1 : o.x0 - CLOSE_BAND, o.y0 - CLOSE_BAND,
+        right ? o.x1 + CLOSE_BAND : o.x0 - 1, o.y1 + CLOSE_BAND)
+      : blackIn(o.x0 - CLOSE_BAND, dy > 0 ? o.y1 + 1 : o.y0 - CLOSE_BAND,
+        o.x1 + CLOSE_BAND, dy > 0 ? o.y1 + CLOSE_BAND : o.y0 - 1);
+    if (pts.length === 0) continue;
+
+    if (vertical) {
+      const ymin = Math.min(...pts.map((p) => p.y));
+      const ymax = Math.max(...pts.map((p) => p.y));
+      paint(closers, right ? o.x1 + 1 : o.x0 - CLOSE_STROKE, ymin,
+        right ? o.x1 + CLOSE_STROKE : o.x0 - 1, ymax);
+      // apaga a ponta antiga que passava por baixo do objeto
+      if (right) paint(trim, o.x0 - CLOSE_BAND, ymin - 2, o.x1, ymax + 2);
+      else paint(trim, o.x0, ymin - 2, o.x1 + CLOSE_BAND, ymax + 2);
+    } else {
+      const xmin = Math.min(...pts.map((p) => p.x));
+      const xmax = Math.max(...pts.map((p) => p.x));
+      paint(closers, xmin, dy > 0 ? o.y1 + 1 : o.y0 - CLOSE_STROKE,
+        xmax, dy > 0 ? o.y1 + CLOSE_STROKE : o.y0 - 1);
+      if (dy > 0) paint(trim, xmin - 2, o.y0 - CLOSE_BAND, xmax + 2, o.y1);
+      else paint(trim, xmin - 2, o.y0, xmax + 2, o.y1 + CLOSE_BAND);
+    }
+  }
+  return { closers, trim };
+}
+
+/**
+ * Frestas de 1 px: o traço é desenhado à mão e em alguns cantos as duas pontas se
+ * tocam só na diagonal. A máscara fica fechada, mas o potrace não sustenta um
+ * pescoço de 1 px e o render abre um buraco — o `ㄴ` tinha um na quina inferior
+ * esquerda. O sintoma que identifica o defeito é o miolo colorido alcançar a
+ * página (o contorno vazou); só então as frestas são fechadas.
+ */
+function sealLeaks(data, w, h, CH, ink) {
+  const n = w * h;
+  const fill = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (ink[i]) continue;
+    const o = i * CH;
+    const r = data[o], g = data[o + 1], b = data[o + 2];
+    const mx = Math.max(r, g, b);
+    fill[i] = mx - Math.min(r, g, b) > FILL_MIN_SAT && mx > FILL_MIN_VALUE ? 1 : 0;
+  }
+
+  // maior componente conexo do miolo
+  const label = new Int32Array(n).fill(-1);
+  const stack = new Int32Array(n);
+  let body = -1, bodyArea = 0;
+  for (let start = 0; start < n; start++) {
+    if (!fill[start] || label[start] !== -1) continue;
+    let sp = 0;
+    stack[sp++] = start;
+    label[start] = start;
+    let area = 0;
+    while (sp > 0) {
+      const i = stack[--sp];
+      const x = i % w;
+      const y = (i / w) | 0;
+      area++;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= w) continue;
+          const j = ny * w + nx;
+          if (fill[j] && label[j] === -1) { label[j] = start; stack[sp++] = j; }
+        }
+      }
+    }
+    if (area > bodyArea) { bodyArea = area; body = start; }
+  }
+  if (body === -1 || bodyArea < FILL_MIN_AREA) return 0;
+
+  // lado de fora: 8-conexo da borda por não-tinta (o pescoço diagonal conta como passagem)
+  const outside = new Uint8Array(n);
+  let sp = 0;
+  const seed = (i) => { if (!ink[i] && !outside[i]) { outside[i] = 1; stack[sp++] = i; } };
+  for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
+  while (sp > 0) {
+    const i = stack[--sp];
+    const x = i % w;
+    const y = (i / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= h) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= w) continue;
+        seed(ny * w + nx);
+      }
+    }
+  }
+
+  let leaking = false;
+  for (let i = 0; i < n && !leaking; i++) if (label[i] === body && outside[i]) leaking = true;
+  if (!leaking) return 0;
+
+  // Xadrez: tinta na diagonal e fundo na outra (2x2). O potrace lê 4-conexo,
+  // então esse pescoço de 1 px vira um buraco no render. Só se fecha o xadrez
+  // que está no contorno que segura o miolo — é o que deixa a letra vazar.
+  const nearBody = (k) => {
+    const kx = k % w;
+    const ky = (k / w) | 0;
+    for (let dy = -2; dy <= 2; dy++) {
+      const ny = ky + dy;
+      if (ny < 0 || ny >= h) continue;
+      for (let dx = -2; dx <= 2; dx++) {
+        const nx = kx + dx;
+        if (nx >= 0 && nx < w && label[ny * w + nx] === body) return true;
+      }
+    }
+    return false;
+  };
+  let sealed = 0;
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w - 1; x++) {
+      const i = y * w + x;
+      const a = ink[i], b = ink[i + 1], c = ink[i + w], d = ink[i + w + 1];
+      if (!((a && d && !b && !c) || (b && c && !a && !d))) continue;
+      if (![i, i + 1, i + w, i + w + 1].some(nearBody)) continue;
+      for (const k of [i, i + 1, i + w, i + w + 1]) {
+        if (!ink[k]) { ink[k] = 1; sealed++; }
+      }
+    }
+  }
+  return sealed;
+}
+
+/**
+ * Contorno fino em volta de um preenchimento declarado (a pupila magenta do
+ * `ㅉ`): o miolo colorido não é traço, mas a pupila precisa aparecer. O anel
+ * é desenhado **por fora** da forma, então o miolo continua branco e pintável.
+ */
+function outlineFills(data, w, h, CH, ink, boxes) {
+  let drawn = 0;
+  for (const b of boxes) {
+    const x0 = Math.max(0, b.x0), x1 = Math.min(w - 1, b.x1);
+    const y0 = Math.max(0, b.y0), y1 = Math.min(h - 1, b.y1);
+    const shape = [];
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const i = y * w + x;
+        if (ink[i]) continue;
+        const o = i * CH;
+        const r = data[o], g = data[o + 1], bl = data[o + 2];
+        const mx = Math.max(r, g, bl);
+        if (mx - Math.min(r, g, bl) > 30 && mx > 60) shape.push(i);
+      }
+    }
+    if (shape.length === 0) continue;
+    const isShape = new Uint8Array(w * h);
+    for (const i of shape) isShape[i] = 1;
+    for (const i of shape) {
+      const x = i % w;
+      const y = (i / w) | 0;
+      for (let dy = -OUTLINE_RING; dy <= OUTLINE_RING; dy++) {
+        for (let dx = -OUTLINE_RING; dx <= OUTLINE_RING; dx++) {
+          const ny = y + dy, nx = x + dx;
+          if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
+          const j = ny * w + nx;
+          if (!ink[j] && !isShape[j]) { ink[j] = 1; drawn++; }
+        }
+      }
+    }
+  }
+  return drawn;
+}
+
+/** Arte colorida -> máscara preto/branco (traço), escrita em TMP. */
+async function strokeMask(file, outFile, drop = [], outline = []) {
+  const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
+  const { width: w, height: h, channels: CH } = info;
+  const { closers, trim } = greyObjectClosers(data, w, h, CH);
+  const ink = new Uint8Array(w * h);
+  let drawn = 0, erased = 0;
+  for (let i = 0; i < w * h; i++) {
+    const o = i * CH;
+    const mx = Math.max(data[o], data[o + 1], data[o + 2]);
+    const stroke = mx <= STROKE_MAX && !trim[i];
+    ink[i] = stroke || closers[i] ? 1 : 0;
+    if (closers[i] && mx > STROKE_MAX) drawn++;
+    if (mx <= STROKE_MAX && trim[i]) erased++;
+  }
+  let dropped = 0;
+  for (const b of drop) {
+    for (let y = Math.max(0, b.y0); y <= Math.min(h - 1, b.y1); y++) {
+      for (let x = Math.max(0, b.x0); x <= Math.min(w - 1, b.x1); x++) {
+        const i = y * w + x;
+        if (ink[i]) { ink[i] = 0; dropped++; }
+      }
+    }
+  }
+  const outlined = outlineFills(data, w, h, CH, ink, outline);
+  const sealed = sealLeaks(data, w, h, CH, ink);
+  const buf = Buffer.alloc(w * h);
+  for (let i = 0; i < w * h; i++) buf[i] = ink[i] ? 0 : 255;
+  const parts = [];
+  if (drawn) parts.push(`${drawn} px de borda fechada`);
+  if (erased) parts.push(`${erased} px de sobra aparada`);
+  if (dropped) parts.push(`${dropped} px de adereço removido`);
+  if (outlined) parts.push(`${outlined} px de contorno fino`);
+  if (sealed) parts.push(`${sealed} px de fresta fechada`);
+  if (parts.length) log(`    ${path.basename(file)}: ${parts.join(', ')}`);
+  await sharp(buf, { raw: { width: w, height: h, channels: 1 } })
+    .png({ compressionLevel: 9 })
+    .toFile(outFile);
+  return { w, h };
+}
 
 /* ---------- 1. leitura e bbox compartilhado ---------- */
 
@@ -164,19 +578,19 @@ function hsl(hDeg, s, l) {
 
 /* ---------- 4. prancha de contato ---------- */
 
-function sheet(svgs, box, cols = 6) {
+function sheet(items, box, cols = 6) {
   const tileW = 320, tileH = 260, pad = 16;
-  const rows = Math.ceil(svgs.length / cols);
+  const rows = Math.ceil(items.length / cols);
   const W = cols * tileW, H = rows * tileH;
   const s = Math.min(tileW / box.w, tileH / box.h) * 0.86;
-  const groups = svgs.map((sv, i) => {
-    const g = sv.body.match(/<g[\s\S]*<\/g>/)?.[0] ?? '';
+  const groups = items.map((it, i) => {
+    const g = it.body.match(/<g[\s\S]*<\/g>/)?.[0] ?? '';
     const cx = (i % cols) * tileW + tileW / 2;
     const cy = Math.floor(i / cols) * tileH + tileH / 2 + 8;
     const tx = cx - (box.minX + box.w / 2) * s;
     const ty = cy - (box.minY + box.h / 2) * s;
     return `<g transform="translate(${tx} ${ty}) scale(${s})">${g}</g>
-      <text x="${(i % cols) * tileW + 12}" y="${Math.floor(i / cols) * tileH + 26}" font-family="Helvetica" font-size="22" fill="#888">${sv.letter}</text>`;
+      <text x="${(i % cols) * tileW + 12}" y="${Math.floor(i / cols) * tileH + 26}" font-family="Helvetica" font-size="${it.label.length > 6 ? 18 : 22}" fill="#888">${it.label}</text>`;
   }).join('\n');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <rect width="${W}" height="${H}" fill="#fff"/>${groups}</svg>`;
@@ -184,26 +598,50 @@ function sheet(svgs, box, cols = 6) {
 
 /* ---------- main ---------- */
 
-async function main() {
+async function build(langId, cfg) {
+  const { src: SRC, out: OUT, qa: QA } = cfg;
+  log(`\n=== ${langId}: ${cfg.letters.length} letras de ${SRC} ===`);
+
   fs.mkdirSync(OUT, { recursive: true });
   fs.mkdirSync(QA, { recursive: true });
   fs.mkdirSync(TMP, { recursive: true });
 
+  // 0. arte colorida -> máscara de traço
+  const files = new Map();
+  for (const { id } of cfg.letters) {
+    const source = path.join(SRC, `${id}.png`);
+    if (!fs.existsSync(source)) throw new Error(`faltando ${source}`);
+    if (cfg.ink === 'stroke') {
+      const mask = path.join(TMP, `${langId}-${id}.png`);
+      await strokeMask(source, mask, cfg.drop?.[id], cfg.outline?.[id]);
+      files.set(id, mask);
+    } else {
+      files.set(id, source);
+    }
+  }
+
   // 1. bbox compartilhado + métricas de tinta
   const inputs = [];
-  for (const L of LETTERS) {
-    const gray = await readGray(path.join(SRC, `${L}.png`));
-    inputs.push({ L, gray, bbox: inkBBox(gray) });
+  for (const { id, label } of cfg.letters) {
+    const gray = await readGray(files.get(id));
+    inputs.push({ id, label, gray, bbox: inkBBox(gray) });
+  }
+  const sw = inputs[0].gray.w;
+  const sh = inputs[0].gray.h;
+  for (const i of inputs) {
+    if (i.gray.w !== sw || i.gray.h !== sh) {
+      throw new Error(`canvas diferente em ${i.id}: ${i.gray.w}x${i.gray.h} (esperado ${sw}x${sh})`);
+    }
   }
   const box = {
     minX: Math.max(0, Math.min(...inputs.map((i) => i.bbox.minX)) - PAD),
     minY: Math.max(0, Math.min(...inputs.map((i) => i.bbox.minY)) - PAD),
-    maxX: Math.min(329, Math.max(...inputs.map((i) => i.bbox.maxX)) + PAD),
-    maxY: Math.min(251, Math.max(...inputs.map((i) => i.bbox.maxY)) + PAD),
+    maxX: Math.min(sw - 1, Math.max(...inputs.map((i) => i.bbox.maxX)) + PAD),
+    maxY: Math.min(sh - 1, Math.max(...inputs.map((i) => i.bbox.maxY)) + PAD),
   };
   box.w = box.maxX - box.minX + 1;
   box.h = box.maxY - box.minY + 1;
-  log(`bbox compartilhado: ${box.w}x${box.h} @ (${box.minX},${box.minY})`);
+  log(`canvas fonte: ${sw}x${sh} · bbox compartilhado: ${box.w}x${box.h} @ (${box.minX},${box.minY})`);
 
   const scale = Math.min(CANVAS.w / box.w, CANVAS.h / box.h);
   const px = { w: Math.round(box.w * scale), h: Math.round(box.h * scale) };
@@ -216,13 +654,13 @@ async function main() {
   const metrics = [];
   const sheetItems = [];
 
-  for (const { L, gray } of inputs) {
-    const dir = path.join(OUT, L);
+  for (const { id, label, gray } of inputs) {
+    const dir = path.join(OUT, id);
     fs.mkdirSync(dir, { recursive: true });
 
     // vetor
-    const pbmPath = path.join(TMP, `${L}.pbm`);
-    const rawSvgPath = path.join(TMP, `${L}.svg`);
+    const pbmPath = path.join(TMP, `${langId}-${id}.pbm`);
+    const rawSvgPath = path.join(TMP, `${langId}-${id}.svg`);
     fs.writeFileSync(pbmPath, toPBM(gray));
     trace(pbmPath, rawSvgPath);
     const rawSvg = fs.readFileSync(rawSvgPath, 'utf8');
@@ -266,10 +704,10 @@ async function main() {
     fs.mkdirSync(path.join(QA, 'regioes'), { recursive: true });
     await sharp(regionPreview(rm.labels, rm.regions, REGION.w, REGION.h), {
       raw: { width: REGION.w, height: REGION.h, channels: 4 },
-    }).resize(560).png().toFile(path.join(QA, 'regioes', `${L}.png`));
+    }).resize(560).png().toFile(path.join(QA, 'regioes', `${id}.png`));
 
     metrics.push({
-      letter: L,
+      letter: id,
       paths: (rawSvg.match(/<path/g) || []).length,
       regions: rm.regions.length,
       paintable: paintable.length,
@@ -277,23 +715,42 @@ async function main() {
       bytes: ['ink.svg', 'ink.png', 'region.png', 'thumb.webp']
         .reduce((s, f) => s + fs.statSync(path.join(dir, f)).size, 0),
     });
-    sheetItems.push({ letter: L, body: rawSvg });
-    log(`  ${L} ok`);
+    sheetItems.push({ label, body: rawSvg });
+    log(`  ${id} ok`);
   }
 
   // prancha
   await sharp(Buffer.from(sheet(sheetItems, box))).png().toFile(path.join(QA, 'prancha.png'));
 
   const total = metrics.reduce((s, m) => s + m.bytes, 0);
-  fs.writeFileSync(path.join(QA, 'metrics.json'), JSON.stringify({ box, px, total, metrics }, null, 2));
+  fs.writeFileSync(
+    path.join(QA, 'metrics.json'),
+    JSON.stringify({ lang: langId, source: { w: sw, h: sh }, box, px, total, metrics }, null, 2),
+  );
 
   log('\nletra  paths  regiões  pintáveis  maior%  peso');
   for (const m of metrics) {
-    log(`${m.letter}      ${String(m.paths).padStart(2)}      ${String(m.regions).padStart(2)}        ${String(m.paintable).padStart(2)}       ${String(m.largestPct).padStart(4)}   ${(m.bytes / 1024).toFixed(0)} KB`);
+    log(`${m.letter.padEnd(14)} ${String(m.paths).padStart(2)}      ${String(m.regions).padStart(2)}        ${String(m.paintable).padStart(2)}       ${String(m.largestPct).padStart(4)}   ${(m.bytes / 1024).toFixed(0)} KB`);
   }
-  log(`\ntotal public/letras: ${(total / 1024 / 1024).toFixed(2)} MB`);
-  log(`letras com o corpo sem região própria (balde vazaria): ${metrics.filter((m) => m.largestPct < 8).map((m) => m.letter).join(' ') || 'nenhuma'}`);
+  log(`\ntotal ${OUT}: ${(total / 1024 / 1024).toFixed(2)} MB`);
+  if (cfg.ink === 'dark') {
+    log(`letras com o corpo sem região própria (balde vazaria): ${metrics.filter((m) => m.largestPct < 8).map((m) => m.letter).join(' ') || 'nenhuma'}`);
+  } else {
+    const sorted = metrics.map((m) => m.largestPct).sort((a, b) => a - b);
+    log(`maior região pintável: ${sorted[0]}% a ${sorted[sorted.length - 1]}% do canvas `
+      + `(todo jamo tem região interna; o % é menor que nas latinas porque a região é o corpo do traço — ver seção 8.4)`);
+  }
   log(`prancha: ${path.join(QA, 'prancha.png')} · regiões: ${path.join(QA, 'regioes')}`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+const arg = process.argv[2] ?? 'all';
+const targets = arg === 'all' ? Object.keys(LANGS) : [arg];
+for (const t of targets) {
+  if (!LANGS[t]) {
+    console.error(`idioma desconhecido: ${t} (use ${Object.keys(LANGS).join(', ')} ou all)`);
+    process.exit(1);
+  }
+}
+for (const t of targets) {
+  await build(t, LANGS[t]);
+}
