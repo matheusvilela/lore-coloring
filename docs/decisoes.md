@@ -260,7 +260,7 @@ O pipeline nasceu para as 26 latinas, que já vêm em traço preto. Para outras 
 | Brancos (X, Y, Z) | **Omitidos** — substituídos por um único off-white `#F5F0E8` no fim do arco-íris |
 | Ordem da paleta | **Arco-íris** (matiz), não ordem A→Z |
 | Cor oficial / atalho | **Não** — a criança escolhe livremente |
-| Exportar / imprimir | **Fora de escopo** |
+| Exportar letra | **Entra** — a grade salva a letra pintada em PNG (papel + pintura + tinta). **Imprimir/PDF em lote fica fora de escopo** |
 | Repositório | **`lore-coloring`**, público (D11) |
 | Artefatos de build | **Commitados** em `public/letras/**`; CI não precisa de potrace (D4) |
 | Ferramentas locais | `potrace` 1.16 via Homebrew + `sharp` como devDependency |
