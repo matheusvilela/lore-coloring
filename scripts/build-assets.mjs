@@ -2,26 +2,45 @@
 /**
  * Pipeline de assets do lore-coloring.
  *
- * Entrada : assets-src/letras/{A..Z}.png  (329x251, fundo branco, traço preto)
- * Saída   : public/letras/{A..Z}/
+ * Entrada : assets-src/<idioma>/{<letra>.png}  (uma imagem por letra, mesmo
+ *           canvas para todas, fundo branco)
+ * Saída   : public/<idioma>/<letra>/
  *             ink.svg     fonte vetorial (viewBox = bbox compartilhado)
  *             ink.png     preto + alpha, 2048x1562 (metade do canvas de pintura)
  *             region.png  mapa de regiões do balde, 1024x781 (R+G = id)
  *             thumb.webp  miniatura para a grade
- *           _qa/prancha.png  prancha de contato para aprovação visual
+ *           _qa/.../prancha.png  prancha de contato para aprovação visual
  *
- * Uso: node scripts/build-assets.mjs
+ * Idiomas:
+ *   latin   A–Z, arte já em traço preto (lê direto a luminância)
+ *   coreano 40 jamo, arte colorida (extrai só o traço preto antes de vetorizar)
+ *
+ * Uso: node scripts/build-assets.mjs [latin|coreano|all]
  * Requer: potrace (Homebrew) e sharp (devDependency).
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import sharp from 'sharp';
+import { JAMO } from './coreano-jamo.mjs';
 
-const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-const SRC = 'assets-src/letras';
-const OUT = 'public/letras';
-const QA = '_qa';
+const LANGS = {
+  latin: {
+    src: 'assets-src/letras',
+    out: 'public/letras',
+    qa: '_qa',
+    letters: [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((id) => ({ id, label: id })),
+    ink: 'dark',
+  },
+  coreano: {
+    src: 'assets-src/coreano',
+    out: 'public/coreano',
+    qa: '_qa/coreano',
+    letters: JAMO.map((j, i) => ({ id: j.name, label: `${i + 1}. ${j.name} ${j.glyph}` })),
+    ink: 'stroke',
+  },
+};
+
 const TMP = '.tmp-assets';
 
 const CANVAS = { w: 2048, h: 1562 };          // resolução da camada de pintura
@@ -29,7 +48,33 @@ const REGION = { w: 1024, h: 781 };           // metade exata de CANVAS
 const THRESHOLD = 128;                        // < 128 = tinta
 const PAD = 6;                                // folga no bbox compartilhado (px na fonte)
 
+/**
+ * Traço da arte colorida: o contorno é preto puro (#000000/#010101) e os
+ * preenchimentos mais escuros começam em #1a1621 — então canal máximo ≤ 24
+ * separa contorno de preenchimento com folga de 9 níveis. Os poucos pixels
+ * tingidos que passam são a franja de antialiasing do próprio contorno.
+ */
+const STROKE_MAX = 24;
+
 const log = (...a) => console.log(...a);
+
+/* ---------- 0. preparo da tinta ---------- */
+
+/** Arte colorida -> máscara preto/branco (traço), escrita em TMP. */
+async function strokeMask(file, outFile) {
+  const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
+  const { width: w, height: h, channels: CH } = info;
+  const buf = Buffer.alloc(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const o = i * CH;
+    const mx = Math.max(data[o], data[o + 1], data[o + 2]);
+    buf[i] = mx <= STROKE_MAX ? 0 : 255;
+  }
+  await sharp(buf, { raw: { width: w, height: h, channels: 1 } })
+    .png({ compressionLevel: 9 })
+    .toFile(outFile);
+  return { w, h };
+}
 
 /* ---------- 1. leitura e bbox compartilhado ---------- */
 
@@ -164,19 +209,19 @@ function hsl(hDeg, s, l) {
 
 /* ---------- 4. prancha de contato ---------- */
 
-function sheet(svgs, box, cols = 6) {
+function sheet(items, box, cols = 6) {
   const tileW = 320, tileH = 260, pad = 16;
-  const rows = Math.ceil(svgs.length / cols);
+  const rows = Math.ceil(items.length / cols);
   const W = cols * tileW, H = rows * tileH;
   const s = Math.min(tileW / box.w, tileH / box.h) * 0.86;
-  const groups = svgs.map((sv, i) => {
-    const g = sv.body.match(/<g[\s\S]*<\/g>/)?.[0] ?? '';
+  const groups = items.map((it, i) => {
+    const g = it.body.match(/<g[\s\S]*<\/g>/)?.[0] ?? '';
     const cx = (i % cols) * tileW + tileW / 2;
     const cy = Math.floor(i / cols) * tileH + tileH / 2 + 8;
     const tx = cx - (box.minX + box.w / 2) * s;
     const ty = cy - (box.minY + box.h / 2) * s;
     return `<g transform="translate(${tx} ${ty}) scale(${s})">${g}</g>
-      <text x="${(i % cols) * tileW + 12}" y="${Math.floor(i / cols) * tileH + 26}" font-family="Helvetica" font-size="22" fill="#888">${sv.letter}</text>`;
+      <text x="${(i % cols) * tileW + 12}" y="${Math.floor(i / cols) * tileH + 26}" font-family="Helvetica" font-size="${it.label.length > 6 ? 18 : 22}" fill="#888">${it.label}</text>`;
   }).join('\n');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <rect width="${W}" height="${H}" fill="#fff"/>${groups}</svg>`;
@@ -184,26 +229,50 @@ function sheet(svgs, box, cols = 6) {
 
 /* ---------- main ---------- */
 
-async function main() {
+async function build(langId, cfg) {
+  const { src: SRC, out: OUT, qa: QA } = cfg;
+  log(`\n=== ${langId}: ${cfg.letters.length} letras de ${SRC} ===`);
+
   fs.mkdirSync(OUT, { recursive: true });
   fs.mkdirSync(QA, { recursive: true });
   fs.mkdirSync(TMP, { recursive: true });
 
+  // 0. arte colorida -> máscara de traço
+  const files = new Map();
+  for (const { id } of cfg.letters) {
+    const source = path.join(SRC, `${id}.png`);
+    if (!fs.existsSync(source)) throw new Error(`faltando ${source}`);
+    if (cfg.ink === 'stroke') {
+      const mask = path.join(TMP, `${langId}-${id}.png`);
+      await strokeMask(source, mask);
+      files.set(id, mask);
+    } else {
+      files.set(id, source);
+    }
+  }
+
   // 1. bbox compartilhado + métricas de tinta
   const inputs = [];
-  for (const L of LETTERS) {
-    const gray = await readGray(path.join(SRC, `${L}.png`));
-    inputs.push({ L, gray, bbox: inkBBox(gray) });
+  for (const { id, label } of cfg.letters) {
+    const gray = await readGray(files.get(id));
+    inputs.push({ id, label, gray, bbox: inkBBox(gray) });
+  }
+  const sw = inputs[0].gray.w;
+  const sh = inputs[0].gray.h;
+  for (const i of inputs) {
+    if (i.gray.w !== sw || i.gray.h !== sh) {
+      throw new Error(`canvas diferente em ${i.id}: ${i.gray.w}x${i.gray.h} (esperado ${sw}x${sh})`);
+    }
   }
   const box = {
     minX: Math.max(0, Math.min(...inputs.map((i) => i.bbox.minX)) - PAD),
     minY: Math.max(0, Math.min(...inputs.map((i) => i.bbox.minY)) - PAD),
-    maxX: Math.min(329, Math.max(...inputs.map((i) => i.bbox.maxX)) + PAD),
-    maxY: Math.min(251, Math.max(...inputs.map((i) => i.bbox.maxY)) + PAD),
+    maxX: Math.min(sw - 1, Math.max(...inputs.map((i) => i.bbox.maxX)) + PAD),
+    maxY: Math.min(sh - 1, Math.max(...inputs.map((i) => i.bbox.maxY)) + PAD),
   };
   box.w = box.maxX - box.minX + 1;
   box.h = box.maxY - box.minY + 1;
-  log(`bbox compartilhado: ${box.w}x${box.h} @ (${box.minX},${box.minY})`);
+  log(`canvas fonte: ${sw}x${sh} · bbox compartilhado: ${box.w}x${box.h} @ (${box.minX},${box.minY})`);
 
   const scale = Math.min(CANVAS.w / box.w, CANVAS.h / box.h);
   const px = { w: Math.round(box.w * scale), h: Math.round(box.h * scale) };
@@ -216,13 +285,13 @@ async function main() {
   const metrics = [];
   const sheetItems = [];
 
-  for (const { L, gray } of inputs) {
-    const dir = path.join(OUT, L);
+  for (const { id, label, gray } of inputs) {
+    const dir = path.join(OUT, id);
     fs.mkdirSync(dir, { recursive: true });
 
     // vetor
-    const pbmPath = path.join(TMP, `${L}.pbm`);
-    const rawSvgPath = path.join(TMP, `${L}.svg`);
+    const pbmPath = path.join(TMP, `${langId}-${id}.pbm`);
+    const rawSvgPath = path.join(TMP, `${langId}-${id}.svg`);
     fs.writeFileSync(pbmPath, toPBM(gray));
     trace(pbmPath, rawSvgPath);
     const rawSvg = fs.readFileSync(rawSvgPath, 'utf8');
@@ -266,10 +335,10 @@ async function main() {
     fs.mkdirSync(path.join(QA, 'regioes'), { recursive: true });
     await sharp(regionPreview(rm.labels, rm.regions, REGION.w, REGION.h), {
       raw: { width: REGION.w, height: REGION.h, channels: 4 },
-    }).resize(560).png().toFile(path.join(QA, 'regioes', `${L}.png`));
+    }).resize(560).png().toFile(path.join(QA, 'regioes', `${id}.png`));
 
     metrics.push({
-      letter: L,
+      letter: id,
       paths: (rawSvg.match(/<path/g) || []).length,
       regions: rm.regions.length,
       paintable: paintable.length,
@@ -277,23 +346,42 @@ async function main() {
       bytes: ['ink.svg', 'ink.png', 'region.png', 'thumb.webp']
         .reduce((s, f) => s + fs.statSync(path.join(dir, f)).size, 0),
     });
-    sheetItems.push({ letter: L, body: rawSvg });
-    log(`  ${L} ok`);
+    sheetItems.push({ label, body: rawSvg });
+    log(`  ${id} ok`);
   }
 
   // prancha
   await sharp(Buffer.from(sheet(sheetItems, box))).png().toFile(path.join(QA, 'prancha.png'));
 
   const total = metrics.reduce((s, m) => s + m.bytes, 0);
-  fs.writeFileSync(path.join(QA, 'metrics.json'), JSON.stringify({ box, px, total, metrics }, null, 2));
+  fs.writeFileSync(
+    path.join(QA, 'metrics.json'),
+    JSON.stringify({ lang: langId, source: { w: sw, h: sh }, box, px, total, metrics }, null, 2),
+  );
 
   log('\nletra  paths  regiões  pintáveis  maior%  peso');
   for (const m of metrics) {
-    log(`${m.letter}      ${String(m.paths).padStart(2)}      ${String(m.regions).padStart(2)}        ${String(m.paintable).padStart(2)}       ${String(m.largestPct).padStart(4)}   ${(m.bytes / 1024).toFixed(0)} KB`);
+    log(`${m.letter.padEnd(14)} ${String(m.paths).padStart(2)}      ${String(m.regions).padStart(2)}        ${String(m.paintable).padStart(2)}       ${String(m.largestPct).padStart(4)}   ${(m.bytes / 1024).toFixed(0)} KB`);
   }
-  log(`\ntotal public/letras: ${(total / 1024 / 1024).toFixed(2)} MB`);
-  log(`letras com o corpo sem região própria (balde vazaria): ${metrics.filter((m) => m.largestPct < 8).map((m) => m.letter).join(' ') || 'nenhuma'}`);
+  log(`\ntotal ${OUT}: ${(total / 1024 / 1024).toFixed(2)} MB`);
+  if (cfg.ink === 'dark') {
+    log(`letras com o corpo sem região própria (balde vazaria): ${metrics.filter((m) => m.largestPct < 8).map((m) => m.letter).join(' ') || 'nenhuma'}`);
+  } else {
+    const sorted = metrics.map((m) => m.largestPct).sort((a, b) => a - b);
+    log(`maior região pintável: ${sorted[0]}% a ${sorted[sorted.length - 1]}% do canvas `
+      + `(jamo de traço aberto não têm região interna — ver seção 8.4 do doc)`);
+  }
   log(`prancha: ${path.join(QA, 'prancha.png')} · regiões: ${path.join(QA, 'regioes')}`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+const arg = process.argv[2] ?? 'all';
+const targets = arg === 'all' ? Object.keys(LANGS) : [arg];
+for (const t of targets) {
+  if (!LANGS[t]) {
+    console.error(`idioma desconhecido: ${t} (use ${Object.keys(LANGS).join(', ')} ou all)`);
+    process.exit(1);
+  }
+}
+for (const t of targets) {
+  await build(t, LANGS[t]);
+}

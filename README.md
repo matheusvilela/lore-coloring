@@ -35,7 +35,10 @@ Para abrir no celular na mesma rede: `npm run dev -- --host` e use o endereço
 | `npm run preview` | serve o `dist/` em `http://localhost:4173/lore-coloring/` |
 | `npm run typecheck` | só a checagem de tipos |
 | `npm run test:e2e` | Playwright: desktop (1280×900) e celular (Pixel 7) |
-| `npm run build:assets` | regenera `public/letras/**` (precisa de `potrace` + `sharp`) |
+| `npm run build:assets` | regenera `public/letras/**` **e** `public/coreano/**` (precisa de `potrace` + `sharp`) |
+| `npm run crop:coreano` | refaz os 40 recortes a partir de `assets-src/coreano/sheet.png` |
+
+`node scripts/build-assets.mjs coreano` (ou `latin`) regenera um idioma só.
 
 Antes de `dev` e `build` roda `scripts/preflight.mjs`, que falha com mensagem
 clara se o Node estiver fora da faixa do Vite 8 ou se faltar `npm ci`.
@@ -61,6 +64,8 @@ rodando.
 
 - `docs/decisoes.md` — decisões de produto e arquitetura (fonte da verdade)
 - `assets-src/letras/` — sprites originais (raster, 329×251)
+- `assets-src/coreano/` — folha colorida dos jamo + os 40 recortes
 - `public/letras/{A..Z}/` — artefatos de runtime gerados e commitados
+- `public/coreano/{jamo}/` — idem para o coreano (ainda sem tela que carregue)
 - `src/canvas/` — motor de pintura (camadas, comandos, undo, balde)
 - `e2e/` — testes de ponta a ponta

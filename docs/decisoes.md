@@ -1,6 +1,6 @@
 # Decisões — App de colorir "Alfabeto Lore"
 
-**Status:** aprovado (MVP) · **Data:** 16/11/2026 · **Rev.:** 6 · **Alvo:** celular, tablet e desktop (mesma build)
+**Status:** aprovado (MVP) · **Data:** 17/11/2026 · **Rev.:** 7 · **Alvo:** celular, tablet e desktop (mesma build)
 
 ---
 
@@ -140,9 +140,14 @@ Nenhuma dependência de áudio no bundle. A camada de desenho emite eventos de d
 
 ```
 lore/
-├─ assets-src/letras/          # PNGs originais
-├─ scripts/build-assets.mjs    # vetoriza → rasteriza → region map → thumb
+├─ assets-src/letras/          # PNGs originais (A–Z, traço preto)
+├─ assets-src/coreano/         # folha colorida + 40 recortes (jamo)
+├─ scripts/
+│  ├─ build-assets.mjs         # vetoriza → rasteriza → region map → thumb (por idioma)
+│  ├─ crop-coreano.mjs         # folha colorida → 1 PNG por jamo
+│  └─ coreano-jamo.mjs         # os 40 jamo: nome, glifo e caixa (fonte única)
 ├─ public/letras/{A..Z}/       # gerado (ink.svg, ink.png, region.png, thumb.webp)
+├─ public/coreano/{jamo}/      # gerado, mesmo formato — ainda sem UI
 ├─ e2e/                        # Playwright (studio + ferramentas)
 ├─ src/
 │  ├─ App.tsx                  # studio: palco, pager, zoom, atalhos (a grade entra na Etapa 4)
@@ -190,6 +195,16 @@ Motivo: com o canvas fixo (D7), a folha em retrato é limitada pela largura — 
 - **Implementação**: `src/canvas/zoom.ts`, transformação aplicada direto no DOM (`translate3d + scale`, `transform-origin: 0 0`), fora do ciclo do React — nenhum re-render por `pointermove` (regra de ouro D12). O `Painter` não muda: ele converte o ponteiro por `getBoundingClientRect()`, que já vem escalado.
 - **Limite**: as camadas têm 2048 px de largura; a 4× num celular DPR 2 a tinta é ampliada ~1,4× além do raster, então fica levemente suave. Aceito (é traço de caneta, não texto).
 - A folha é recortada pelo palco (`overflow: hidden`): o zoom não invade o dock.
+
+### D16 · Outras línguas: traço extraído de arte colorida
+
+O pipeline nasceu para as 26 latinas, que já vêm em traço preto. Para outras escritas a fonte é **arte colorida** (folha única em `assets-src/coreano/sheet.png`), e o que o app precisa é o mesmo produto: traço preto sobre branco. Então o pipeline ganhou dois estágios antes de vetorizar — **recortar** cada personagem e **descartar o preenchimento**:
+
+- **Recorte por posse de componente**, não por célula geométrica: cada componente conexo da folha pertence a uma letra; adereços soltos (chapéu, texto "WAND", câmera, latas de spray) são agrupados por vizinhança e o grupo inteiro vai para a letra cuja caixa dilatada em 24 px cobre mais área dele. Célula por ponto médio cortava adereço ao meio (a asa do `ㅂ`, o "W" do "WAND").
+- **Traço = preto neutro**: o contorno é `#000000`/`#010101` e o preenchimento mais escuro começa em `#1a1621`, então **canal máximo ≤ 24** separa os dois com 9 níveis de folga. Pupilas, sobrancelhas e dentes continuam sólidos; corpos escuros (o sol `ㅇ`, `#1a1621`) viram contorno vazado, que é o que a criança pinta.
+- **Canvas uniforme** de mesma proporção das latinas (309 × 236 ↔ 329 × 251) → o resto do pipeline (`viewBox` compartilhado, 2048 × 1562, `region.png`, `thumb`) roda **sem nenhuma alteração**.
+- **Idioma é argumento**: `node scripts/build-assets.mjs [latin|coreano|all]`. Os artefatos são commitados como os latinos; CI continua sem potrace.
+- O coreano **não está na UI** ainda: `public/coreano/` existe, mas nenhuma tela o carrega. Detalhes e medições na seção 8.
 
 ---
 
@@ -259,6 +274,7 @@ Motivo: com o canvas fixo (D7), a folha em retrato é limitada pela largura — 
 2. **Paleta de 24 pode ficar apagada.** Os 8 tons extras de alta saturação que eu havia proposto (magenta `#E64980`, ciano `#22D3EE`, roxo vivo `#7048E8`, laranja-neon `#FF922B`, dourado `#FAB005`, rosa-chiclete `#FF8FCF`, marrom `#8B5E34`, cinza-claro `#CED4DA`) foram retirados junto com a mudança de ordem. Reavaliar depois do primeiro teste com a criança.
 3. **Retrato de celular: a letra em 100% continua pequena.** ~~Resolvido~~ **Resolvido por outro caminho (rev. 6).** A arte é paisagem (1,31:1), então a folha em retrato é limitada pela largura: 370 × 282 num iPhone de 390, e no tamanho de encaixe ela não cresce mais. Tentei canvas por letra (ganho medido de 2,75× de área mediana) e **descartei** pelos motivos de D7. A solução adotada foi **pinça/zoom até 4×** (D15), que dá o mesmo "pintar o olho da letra" sem mudar a régua. A folga vertical que sobrou entre a folha e o dock não é mais desperdício: virou faixa das setas no celular. Continua em aberto, se o teste com a criança pedir, **abrir já ampliado no bbox da letra** ao trocar de página (zoom inicial em vez de 1×).
 4. **Letra apagada até o fim conta como "pintada".** O histórico tem comandos de borracha, então `hasPaint()` continua verdadeiro com a tela em branco. Na Etapa 4 isso apareceria na grade como uma miniatura em branco. Decidir lá: salvar só se houver píxel não transparente (checagem barata no momento do save) e, se não houver, apagar o blob.
+5. **Coreano fora da UI.** Os 40 jamo já estão recortados, vetorizados e medidos em `public/coreano/`, mas nenhuma tela os carrega. Antes de ligar: seletor de idioma, lista de letras por idioma e a decisão do balde em traço aberto (seção 8.4).
 
 ---
 
@@ -389,6 +405,79 @@ Observar e anotar: ela pinta fora da linha de propósito? o balde vazando confun
 
 **Ordem de grandeza:** ~4–5 dias de trabalho esparsos até o Gate 5, mais uma sessão de observação.
 
+
+---
+
+## 8. Outras línguas · coreano (jamo)
+
+Objetivo: deixar a base pronta para colorir outras escritas. O coreano entrou primeiro porque a folha de origem já existia — **uma arte colorida única** (`assets-src/coreano/sheet.png`, 1280 × 1064, fundo branco, 40 personagens em 6 linhas).
+
+O que o app consome é sempre o mesmo produto: traço preto sobre branco. Por isso o pipeline virou `crop → extrair traço → vetorizar` (D16), e a parte de vetorização é **a mesma** das latinas.
+
+### 8.1 Recorte: posse de componente, não célula
+
+A folha não tem grade: os personagens têm braços, asas e adereços que passam da coluna vizinha. A primeira tentativa (banda de linha + célula delimitada pelo ponto médio entre corpos) cortava adereço ao meio — a asa direita do `ㅂ` ficava com 204 px de 267, o "WAND" do `ㅈ` virava "IND", as latas do `ㅛ` perdiam as pontas.
+
+A regra que ficou:
+
+1. Cada componente conexo (8-conexo, ≥ 8 px) da folha pertence a uma letra.
+2. Componente **contido** na caixa do corpo de uma letra é dela (olhos, boca, detalhes internos).
+3. Os demais são adereços: agrupados por vizinhança (até 10 px entre caixas) e o **grupo inteiro** vai para a letra cuja caixa, **dilatada em 24 px**, cobre mais área do grupo. Distância pura errava (o "W" do "WAND" caía no `ㅇ` vizinho, porque estava a 3 px dele e a 30 px do `ㅈ`); sobreposição só em x errava na vertical (jogava adereço na linha de baixo).
+4. O recorte é a união dos componentes da letra, centrada num canvas uniforme.
+
+| Adereços agrupados | Letra | Peças |
+|---|---|---|
+| "WAND" + seta + varinha | `ㅈ` jieut | 5 |
+| câmera + símbolo azul | `ㅋ` kieuk | 2 |
+| chapéu de bruxa | `ㅈ` jieut | (corpo) |
+| latas de spray | `ㅛ` yo | 2 |
+| linhas de fedor | `ㅉ` ssang-jieut | 4 |
+| lâmpada do gênio | `ㄲ` ssang-giyeok | (corpo) |
+| barco/vela | `ㅙ` wae | (corpo) |
+
+**Prova de que nada se perdeu:** remontando a folha a partir dos 40 recortes, sobram **2 px de 521.409** (0,000%) — os dois são um respingo de 2 px descartado como ruído. Artefatos: `_qa/coreano/conferencia.png` (os 40 recortes), `_qa/coreano/recortes.json` (geometria) e `_qa/coreano/reconstrucao.png`/`reconstrucao.mjs` (a prova).
+
+Ordem de leitura confirmada contra as descrições dos personagens: `ㄱㄴㄷㄹㅁㅂㅅ / ㅇㅈㅊㅋㅌㅍㅎ / ㅏㅑㅓㅕㅗㅛㅜㅠ / ㅡㅣㄲㄸㅃ / ㅆㅉㅐㅒㅔㅖㅘ / ㅙㅚㅝㅞㅟㅢ` (lâmpada = `ㄲ`, dentes de piranha = `ㄸ`, gêmeas = `ㅃ`, linhas de fedor = `ㅉ`, ímã = `ㅒ`, dinossauro = `ㅙ`, antenas = `ㅚ`, besta = `ㅞ`, barba + bengala = `ㅟ`, planeta = `ㅢ`).
+
+### 8.2 Traço: descartar preenchimento sem perder olho
+
+O contorno da arte é preto puro e o preenchimento mais escuro é `#1a1621`. Medido na folha: `#000000` 139.658 px, `#010101` 16.889 px, e o primeiro preenchimento escuro `#1a1621` (canal máximo 33). **Canal máximo ≤ 24** separa os dois com folga; a franja de antialiasing que passa é do próprio contorno (dezenas de px por letra).
+
+O resultado preserva pupila, cílios, dentes e sobrancelhas, e transforma corpo escuro em contorno vazado — `ㅇ` (sol, `#1a1621`) sai como anel com espinhos, que é exatamente o que a criança pinta.
+
+**O que fica de fora, de propósito:** elemento desenhado só em **valor** (cinza-claro), sem linha preta. As latas de spray do `ㅛ` são um contorno de `#d1d1d1` sobre branco e o brilho das lentes do `ㅟ` é `#ededed`: os dois somem. Promovê-los a traço seria errado, porque o mesmo cinza-claro é usado como **sombra dentro dos olhos** (`ㅗ`) — viraria um anel fantasma em volta da pupila. Regra: entra linha, sai valor. É a mesma escolha que descarta os preenchimentos coloridos.
+
+Recortes coloridos para conferência em `_qa/coreano/conferencia.png`; traço final em `_qa/coreano/prancha.png`.
+
+### 8.3 Medições
+
+| Métrica | Valor |
+|---|---|
+| personagens | 40 (7 + 7 + 8 + 5 + 7 + 6) |
+| canvas do recorte | 309 × 236 (mesma proporção das latinas, 1,309:1) |
+| bbox compartilhado | 307 × 188 @ (1, 24) |
+| tinta renderizada | **2048 × 1254** (fator 6,67×), centrada em 2048 × 1562 |
+| peso de `public/coreano/` | **2,30 MB** (40 letras, 4 arquivos cada; média 59 KB) |
+| paths por letra | 1 a 12 (mediana 2) |
+| regiões por letra | 4 a 20 |
+| traço extraído × original | 0,000% de tinta perdida no recorte; olhos e dentes preservados |
+| elementos em cinza-claro (valor) | fora do traço: latas do `ㅛ`, brilho das lentes do `ㅟ` |
+
+### 8.4 O que muda quando o coreano entrar na UI
+
+1. **A arte coreana é mais larga.** Como o bbox é justo (união do traço), 307 × 188 = 1,63:1, contra 1,31:1 das latinas. Na mesma canvas de 2048 × 1562 a tinta ocupa 80% da altura — as letras ficam ~20% menores que as latinas. Inevitável sem canvas por idioma (D7 continua valendo para o app). Se incomodar no teste, o caminho é o mesmo de D7: canvas por **idioma**, não por letra.
+2. **Muitos jamo não têm região fechada.** `ㄴ`, `ㄱ`, `ㅏ` são traço aberto: o "dentro" é o fundo da página, então o balde nesses casos pinta a página inteira (a heurística latina "maior% < 8" lista **28 de 40** e não vale aqui). Antes de ligar o balde no coreano, decidir: desabilitar o balde quando a região é a externa, ou desenhar um "fecho invisível" no `region.png`.
+3. **Seletor de idioma e roteamento** (`/lore-coloring/` + `?lang=ko` ou caminho) e a lista de letras em `data/letters.ts` passando a ser por idioma — nada disso existe ainda.
+
+### 8.5 Como regerar
+
+```bash
+npm run crop:coreano              # folha colorida  -> assets-src/coreano/*.png
+npm run build:assets              # os dois idiomas  -> public/{letras,coreano}
+node scripts/build-assets.mjs coreano   # só o coreano
+```
+
+`npm run crop:coreano` só é necessário se a folha de origem mudar; os recortes são commitados.
 
 ---
 
