@@ -722,7 +722,11 @@ body {
   display: block;
   width: 28px;
   height: 19px;
+  /* os SVGs oficiais têm 10:7 e 3:2; `contain` evita esticar a bandeira */
+  object-fit: contain;
   border-radius: 3px;
+  /* a Coreia é branca sobre o botão branco: a hairline dá o contorno */
+  box-shadow: 0 0 0 1px rgba(42, 38, 34, 0.16);
 }
 
 .grid-screen__clear-all {
