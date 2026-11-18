@@ -60,16 +60,153 @@ const log = (...a) => console.log(...a);
 
 /* ---------- 0. preparo da tinta ---------- */
 
+/**
+ * Objeto desenhado só em valor: cinza neutro (sem matiz), fora de qualquer
+ * área fechada por preto e com área relevante. As latas do `ㅛ` são o caso
+ * real — sem contorno preto, encostadas nas hastes da letra. Sombras internas
+ * (olho do `ㅗ`, lente do `ㅟ`) são cinza **cercado** por preto e ficam de fora,
+ * assim como a franja de antialiasing (cinza colado no preto).
+ */
+const GREY_MAX = 253;      // branco da folha é 255; 246–253 ainda é corpo da lata
+const GREY_NEUTRAL = 8;    // matiz: cinza é max−min ≤ 8
+const GREY_MIN_AREA = 200; // abaixo disso é ruído/sobra, não objeto
+const GREY_CLOSE = 2;      // fecha ranhuras e brilhos da lata antes do anel
+const GREY_RING = 1;       // espessura do contorno gerado (× 2 = 2 px)
+
+const dilate = (src, w, h, r) => {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!src[y * w + x]) continue;
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          if (nx >= 0 && nx < w) out[ny * w + nx] = 1;
+        }
+      }
+    }
+  }
+  return out;
+};
+
+const erode = (src, w, h, r) => {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!src[y * w + x]) continue;
+      let all = true;
+      for (let dy = -r; dy <= r && all; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) { all = false; break; }
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= w || !src[ny * w + nx]) { all = false; break; }
+        }
+      }
+      if (all) out[y * w + x] = 1;
+    }
+  }
+  return out;
+};
+
+/** Pixels alcançáveis da borda sem atravessar preto (o "lado de fora" da arte). */
+function outsideOf(black, w, h) {
+  const outside = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let sp = 0;
+  const seed = (i) => {
+    if (!black[i] && !outside[i]) { outside[i] = 1; stack[sp++] = i; }
+  };
+  for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
+  while (sp > 0) {
+    const i = stack[--sp];
+    const x = i % w;
+    const y = (i / w) | 0;
+    if (x > 0) seed(i - 1);
+    if (x < w - 1) seed(i + 1);
+    if (y > 0) seed(i - w);
+    if (y < h - 1) seed(i + w);
+  }
+  return outside;
+}
+
+/** Contorno (anel de GREY_RING px) dos objetos cinza soltos. */
+function greyObjectRing(data, w, h, CH) {
+  const black = new Uint8Array(w * h);
+  const grey = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const o = i * CH;
+    const r = data[o], g = data[o + 1], b = data[o + 2];
+    const mx = Math.max(r, g, b);
+    black[i] = mx <= STROKE_MAX ? 1 : 0;
+    grey[i] = !black[i] && mx <= GREY_MAX && mx - Math.min(r, g, b) <= GREY_NEUTRAL ? 1 : 0;
+  }
+  // franja de antialiasing: cinza a até 2 px do preto não é objeto
+  const nearBlack = dilate(black, w, h, 2);
+  for (let i = 0; i < w * h; i++) if (nearBlack[i]) grey[i] = 0;
+
+  const outside = outsideOf(black, w, h);
+
+  // componentes: fica só o que é exposto (não cercado por preto) e grande
+  const label = new Int32Array(w * h).fill(-1);
+  const stack = new Int32Array(w * h);
+  const keep = new Uint8Array(w * h);
+  for (let start = 0; start < w * h; start++) {
+    if (!grey[start] || label[start] !== -1) continue;
+    const id = start; // marcador local, não precisa ser sequencial
+    let sp = 0;
+    stack[sp++] = start;
+    label[start] = id;
+    const members = [];
+    let exposed = 0;
+    while (sp > 0) {
+      const i = stack[--sp];
+      const x = i % w;
+      const y = (i / w) | 0;
+      members.push(i);
+      if (outside[i]) exposed++;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= w) continue;
+          const j = ny * w + nx;
+          if (grey[j] && label[j] === -1) { label[j] = id; stack[sp++] = j; }
+        }
+      }
+    }
+    if (members.length >= GREY_MIN_AREA && exposed * 2 >= members.length) {
+      for (const i of members) keep[i] = 1;
+    }
+  }
+
+  // closing: a lata tem ranhuras e brilho; sem fechar, o anel vira pente
+  const silh = erode(dilate(keep, w, h, GREY_CLOSE), w, h, GREY_CLOSE);
+  const inner = erode(silh, w, h, GREY_RING);
+  const ring = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) ring[i] = silh[i] && !inner[i] ? 1 : 0;
+  return ring;
+}
+
 /** Arte colorida -> máscara preto/branco (traço), escrita em TMP. */
 async function strokeMask(file, outFile) {
   const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
   const { width: w, height: h, channels: CH } = info;
+  const ring = greyObjectRing(data, w, h, CH);
   const buf = Buffer.alloc(w * h);
+  let outlined = 0;
   for (let i = 0; i < w * h; i++) {
     const o = i * CH;
     const mx = Math.max(data[o], data[o + 1], data[o + 2]);
-    buf[i] = mx <= STROKE_MAX ? 0 : 255;
+    const ink = mx <= STROKE_MAX || ring[i];
+    if (ring[i]) outlined++;
+    buf[i] = ink ? 0 : 255;
   }
+  if (outlined) log(`    ${path.basename(file)}: ${outlined} px de contorno de objeto`);
   await sharp(buf, { raw: { width: w, height: h, channels: 1 } })
     .png({ compressionLevel: 9 })
     .toFile(outFile);

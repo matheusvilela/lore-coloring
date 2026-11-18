@@ -16,7 +16,7 @@
     "w": 2048,
     "h": 1254
   },
-  "total": 2414417,
+  "total": 2427547,
   "metrics": [
     {
       "letter": "giyeok",
@@ -172,11 +172,11 @@
     },
     {
       "letter": "yo",
-      "paths": 4,
-      "regions": 5,
-      "paintable": 3,
-      "largestPct": 0.5,
-      "bytes": 49959
+      "paths": 6,
+      "regions": 7,
+      "paintable": 5,
+      "largestPct": 1.2,
+      "bytes": 63089
     },
     {
       "letter": "u",
