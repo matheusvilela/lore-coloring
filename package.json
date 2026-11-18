@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "build:assets": "node scripts/build-assets.mjs",
-    "build:icons": "node scripts/build-icons.mjs"
+    "build:icons": "node scripts/build-icons.mjs",
+    "build:sheet": "node scripts/trace-sheet.mjs"
   },
   "dependencies": {
     "idb": "^8.0.4",
