@@ -78,6 +78,11 @@ const GREY_MIN_AREA = 200;  // abaixo disso é ruído/sobra, não objeto
 const CLOSE_STROKE = 5;     // espessura da borda gerada (= traço do corpo na fonte)
 const CLOSE_BAND = 7;       // alcance da busca pelas pontas de traço existentes
 
+/** Cor de preenchimento (o miolo colorido da letra), não a franja de AA. */
+const FILL_MIN_SAT = 40;    // matiz mínima do miolo
+const FILL_MIN_VALUE = 80;  // o miolo não é escuro
+const FILL_MIN_AREA = 1500; // adereço colorido é menor que isso
+
 const dilate = (src, w, h, r) => {
   const out = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
@@ -235,23 +240,133 @@ function greyObjectClosers(data, w, h, CH) {
   return { closers, trim };
 }
 
+/**
+ * Frestas de 1 px: o traço é desenhado à mão e em alguns cantos as duas pontas se
+ * tocam só na diagonal. A máscara fica fechada, mas o potrace não sustenta um
+ * pescoço de 1 px e o render abre um buraco — o `ㄴ` tinha um na quina inferior
+ * esquerda. O sintoma que identifica o defeito é o miolo colorido alcançar a
+ * página (o contorno vazou); só então as frestas são fechadas.
+ */
+function sealLeaks(data, w, h, CH, ink) {
+  const n = w * h;
+  const fill = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (ink[i]) continue;
+    const o = i * CH;
+    const r = data[o], g = data[o + 1], b = data[o + 2];
+    const mx = Math.max(r, g, b);
+    fill[i] = mx - Math.min(r, g, b) > FILL_MIN_SAT && mx > FILL_MIN_VALUE ? 1 : 0;
+  }
+
+  // maior componente conexo do miolo
+  const label = new Int32Array(n).fill(-1);
+  const stack = new Int32Array(n);
+  let body = -1, bodyArea = 0;
+  for (let start = 0; start < n; start++) {
+    if (!fill[start] || label[start] !== -1) continue;
+    let sp = 0;
+    stack[sp++] = start;
+    label[start] = start;
+    let area = 0;
+    while (sp > 0) {
+      const i = stack[--sp];
+      const x = i % w;
+      const y = (i / w) | 0;
+      area++;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= w) continue;
+          const j = ny * w + nx;
+          if (fill[j] && label[j] === -1) { label[j] = start; stack[sp++] = j; }
+        }
+      }
+    }
+    if (area > bodyArea) { bodyArea = area; body = start; }
+  }
+  if (body === -1 || bodyArea < FILL_MIN_AREA) return 0;
+
+  // lado de fora: 8-conexo da borda por não-tinta (o pescoço diagonal conta como passagem)
+  const outside = new Uint8Array(n);
+  let sp = 0;
+  const seed = (i) => { if (!ink[i] && !outside[i]) { outside[i] = 1; stack[sp++] = i; } };
+  for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
+  while (sp > 0) {
+    const i = stack[--sp];
+    const x = i % w;
+    const y = (i / w) | 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= h) continue;
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        if (nx < 0 || nx >= w) continue;
+        seed(ny * w + nx);
+      }
+    }
+  }
+
+  let leaking = false;
+  for (let i = 0; i < n && !leaking; i++) if (label[i] === body && outside[i]) leaking = true;
+  if (!leaking) return 0;
+
+  // Xadrez: tinta na diagonal e fundo na outra (2x2). O potrace lê 4-conexo,
+  // então esse pescoço de 1 px vira um buraco no render. Só se fecha o xadrez
+  // que está no contorno que segura o miolo — é o que deixa a letra vazar.
+  const nearBody = (k) => {
+    const kx = k % w;
+    const ky = (k / w) | 0;
+    for (let dy = -2; dy <= 2; dy++) {
+      const ny = ky + dy;
+      if (ny < 0 || ny >= h) continue;
+      for (let dx = -2; dx <= 2; dx++) {
+        const nx = kx + dx;
+        if (nx >= 0 && nx < w && label[ny * w + nx] === body) return true;
+      }
+    }
+    return false;
+  };
+  let sealed = 0;
+  for (let y = 0; y < h - 1; y++) {
+    for (let x = 0; x < w - 1; x++) {
+      const i = y * w + x;
+      const a = ink[i], b = ink[i + 1], c = ink[i + w], d = ink[i + w + 1];
+      if (!((a && d && !b && !c) || (b && c && !a && !d))) continue;
+      if (![i, i + 1, i + w, i + w + 1].some(nearBody)) continue;
+      for (const k of [i, i + 1, i + w, i + w + 1]) {
+        if (!ink[k]) { ink[k] = 1; sealed++; }
+      }
+    }
+  }
+  return sealed;
+}
+
 /** Arte colorida -> máscara preto/branco (traço), escrita em TMP. */
 async function strokeMask(file, outFile) {
   const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
   const { width: w, height: h, channels: CH } = info;
   const { closers, trim } = greyObjectClosers(data, w, h, CH);
-  const buf = Buffer.alloc(w * h);
+  const ink = new Uint8Array(w * h);
   let drawn = 0, erased = 0;
   for (let i = 0; i < w * h; i++) {
     const o = i * CH;
     const mx = Math.max(data[o], data[o + 1], data[o + 2]);
     const stroke = mx <= STROKE_MAX && !trim[i];
-    const ink = stroke || closers[i];
+    ink[i] = stroke || closers[i] ? 1 : 0;
     if (closers[i] && mx > STROKE_MAX) drawn++;
     if (mx <= STROKE_MAX && trim[i]) erased++;
-    buf[i] = ink ? 0 : 255;
   }
-  if (drawn) log(`    ${path.basename(file)}: ${drawn} px de borda fechada, ${erased} px de sobra aparada`);
+  const sealed = sealLeaks(data, w, h, CH, ink);
+  const buf = Buffer.alloc(w * h);
+  for (let i = 0; i < w * h; i++) buf[i] = ink[i] ? 0 : 255;
+  const parts = [];
+  if (drawn) parts.push(`${drawn} px de borda fechada`);
+  if (erased) parts.push(`${erased} px de sobra aparada`);
+  if (sealed) parts.push(`${sealed} px de fresta fechada`);
+  if (parts.length) log(`    ${path.basename(file)}: ${parts.join(', ')}`);
   await sharp(buf, { raw: { width: w, height: h, channels: 1 } })
     .png({ compressionLevel: 9 })
     .toFile(outFile);
@@ -551,7 +666,7 @@ async function build(langId, cfg) {
   } else {
     const sorted = metrics.map((m) => m.largestPct).sort((a, b) => a - b);
     log(`maior região pintável: ${sorted[0]}% a ${sorted[sorted.length - 1]}% do canvas `
-      + `(jamo de traço aberto não têm região interna — ver seção 8.4 do doc)`);
+      + `(todo jamo tem região interna; o % é menor que nas latinas porque a região é o corpo do traço — ver seção 8.4)`);
   }
   log(`prancha: ${path.join(QA, 'prancha.png')} · regiões: ${path.join(QA, 'regioes')}`);
 }
