@@ -202,7 +202,7 @@ O pipeline nasceu para as 26 latinas, que já vêm em traço preto. Para outras 
 
 - **Recorte por posse de componente**, não por célula geométrica: cada componente conexo da folha pertence a uma letra; adereços soltos (chapéu, texto "WAND", câmera, latas de spray) são agrupados por vizinhança e o grupo inteiro vai para a letra cuja caixa dilatada em 24 px cobre mais área dele. Célula por ponto médio cortava adereço ao meio (a asa do `ㅂ`, o "W" do "WAND").
 - **Traço = preto neutro**: o contorno é `#000000`/`#010101` e o preenchimento mais escuro começa em `#1a1621`, então **canal máximo ≤ 24** separa os dois com 9 níveis de folga. Pupilas, sobrancelhas e dentes continuam sólidos; corpos escuros (o sol `ㅇ`, `#1a1621`) viram contorno vazado, que é o que a criança pinta.
-- **Objeto desenhado só em cinza vira contorno gerado**, mas só se estiver **fora** de área fechada por preto: as latas do `ㅛ` não têm linha nenhuma, e sem elas as hastes da letra terminam no ar. Cinza cercado por preto é sombra interna (olho do `ㅗ`, lente do `ㅟ`) e continua fora.
+- **Objeto desenhado só em cinza não vira traço: ele tapa a borda.** As latas do `ㅛ` não têm linha nenhuma e escondem a borda vertical do corpo, então as hastes da letra terminavam no ar. O pipeline desenha a **borda que faltava**: identifica o objeto exposto (cinza neutro, área ≥ 200 px, **fora** de área fechada por preto), traça uma reta de 5 px no lado voltado para o corpo ligando as duas pontas de traço existentes, e **apara** a sobra arredondada que passava por baixo dele. Cinza cercado por preto é sombra interna (olho do `ㅗ`, lente do `ㅟ`) e continua fora; a franja de antialiasing também.
 - **Canvas uniforme** de mesma proporção das latinas (309 × 236 ↔ 329 × 251) → o resto do pipeline (`viewBox` compartilhado, 2048 × 1562, `region.png`, `thumb`) roda **sem nenhuma alteração**.
 - **Idioma é argumento**: `node scripts/build-assets.mjs [latin|coreano|all]`. Os artefatos são commitados como os latinos; CI continua sem potrace.
 - O coreano **não está na UI** ainda: `public/coreano/` existe, mas nenhuma tela o carrega. Detalhes e medições na seção 8.
@@ -448,7 +448,7 @@ O resultado preserva pupila, cílios, dentes e sobrancelhas, e transforma corpo 
 
 **O que fica de fora, de propósito:** elemento desenhado só em **valor** (cinza-claro), sem linha preta. O brilho das lentes do `ㅟ` é `#ededed` e some. Promovê-lo a traço seria errado, porque o mesmo cinza-claro é usado como **sombra dentro dos olhos** (`ㅗ`, `#c1c1c1`): viraria um anel fantasma em volta da pupila. Regra: entra linha, sai valor. É a mesma escolha que descarta os preenchimentos coloridos.
 
-**A exceção: objeto sem contorno.** As latas de spray do `ㅛ` também são só valor — mas, ao contrário da sombra do olho, estão **fora de qualquer área fechada por preto**. Sem elas as duas hastes da letra terminavam no ar e o `ㅛ` ficava aberto nas laterais. Então o pipeline ganhou um estágio: cinza neutro, com área ≥ 200 px, que seja **exposto** (alcançável da borda da página sem atravessar preto) vira **contorno gerado** — silhueta, `closing` de 2 px (as ranhuras da tampa viravam um pente) e anel de 2 px (mesma espessura do traço da letra depois do render). Cinza **cercado** por preto continua fora: é sombra interna. A franja de antialiasing também (cinza a até 2 px do preto). Na folha inteira o único objeto exposto é o par de latas do `ㅛ`: **286 px de anel**, e só `public/coreano/yo/**` muda. O bico vermelho da lata é preenchimento colorido e não entra — a lata sai como corpo liso, ligada às hastes.
+**A exceção: objeto que tapa a borda.** As latas de spray do `ㅛ` também são só valor — mas, ao contrário da sombra do olho, estão **fora de qualquer área fechada por preto** e escondem a borda vertical do corpo: as duas hastes da letra terminavam no ar e o `ㅛ` ficava aberto nas laterais. O objeto não entra no traço (o contorno gerado ao redor da lata foi rejeitado: poluía o desenho). O que entra é a **borda que faltava**: cinza neutro, com área ≥ 200 px, que seja **exposto** (alcançável da borda da página sem atravessar preto) define onde está a borda; o pipeline acha as pontas de traço existentes numa faixa de 7 px do lado voltado para o corpo, liga as duas com uma reta de 5 px (a espessura do traço da letra na fonte) e **apara** a sobra arredondada que corria por baixo do objeto — sem a apara o canto herdava a ponta antiga e virava um gancho. Cinza **cercado** por preto continua fora: é sombra interna. A franja de antialiasing também (cinza a até 2 px do preto). Na folha inteira o único objeto exposto é o par de latas do `ㅛ`: **344 px de borda desenhada e 116 px de sobra aparada**, e só `public/coreano/yo/**` muda. O corpo passa a ser uma região fechada do balde (6,7% do canvas), que antes vazava pela lateral.
 
 Recortes coloridos para conferência em `_qa/coreano/conferencia.png`; traço final em `_qa/coreano/prancha.png`.
 
@@ -460,11 +460,11 @@ Recortes coloridos para conferência em `_qa/coreano/conferencia.png`; traço fi
 | canvas do recorte | 309 × 236 (mesma proporção das latinas, 1,309:1) |
 | bbox compartilhado | 307 × 188 @ (1, 24) |
 | tinta renderizada | **2048 × 1254** (fator 6,67×), centrada em 2048 × 1562 |
-| peso de `public/coreano/` | **2,32 MB** (40 letras, 4 arquivos cada; média 59 KB) |
+| peso de `public/coreano/` | **2,30 MB** (40 letras, 4 arquivos cada; média 59 KB) |
 | paths por letra | 1 a 12 (mediana 2) |
 | regiões por letra | 4 a 20 |
 | traço extraído × original | 0,000% de tinta perdida no recorte; olhos e dentes preservados |
-| objetos em cinza (sem contorno) | latas do `ㅛ`: contorno gerado (286 px de anel no `ㅛ`); brilho da lente do `ㅟ` fica fora por ser sombra interna |
+| objetos em cinza (sem contorno) | latas do `ㅛ`: a letra é fechada com uma reta no lugar da borda que a lata escondia (344 px desenhados, 116 px de sobra aparada); brilho da lente do `ㅟ` fica fora por ser sombra interna |
 
 ### 8.4 O que muda quando o coreano entrar na UI
 

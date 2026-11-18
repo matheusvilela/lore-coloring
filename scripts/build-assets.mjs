@@ -63,15 +63,20 @@ const log = (...a) => console.log(...a);
 /**
  * Objeto desenhado só em valor: cinza neutro (sem matiz), fora de qualquer
  * área fechada por preto e com área relevante. As latas do `ㅛ` são o caso
- * real — sem contorno preto, encostadas nas hastes da letra. Sombras internas
- * (olho do `ㅗ`, lente do `ㅟ`) são cinza **cercado** por preto e ficam de fora,
- * assim como a franja de antialiasing (cinza colado no preto).
+ * real — sem contorno preto, encostadas nas laterais da letra, escondendo a
+ * borda vertical do corpo. Sombras internas (olho do `ㅗ`, lente do `ㅟ`) são
+ * cinza **cercado** por preto e ficam de fora, assim como a franja de
+ * antialiasing (cinza colado no preto).
+ *
+ * O objeto em si não entra no traço: ele tapa a borda da letra, então o que se
+ * desenha é a **borda que faltava** — uma reta do lado voltado para o corpo,
+ * ligando as duas pontas de traço que terminam no objeto.
  */
-const GREY_MAX = 253;      // branco da folha é 255; 246–253 ainda é corpo da lata
-const GREY_NEUTRAL = 8;    // matiz: cinza é max−min ≤ 8
-const GREY_MIN_AREA = 200; // abaixo disso é ruído/sobra, não objeto
-const GREY_CLOSE = 2;      // fecha ranhuras e brilhos da lata antes do anel
-const GREY_RING = 1;       // espessura do contorno gerado (× 2 = 2 px)
+const GREY_MAX = 253;       // branco da folha é 255; 246–253 ainda é corpo da lata
+const GREY_NEUTRAL = 8;     // matiz: cinza é max−min ≤ 8
+const GREY_MIN_AREA = 200;  // abaixo disso é ruído/sobra, não objeto
+const CLOSE_STROKE = 5;     // espessura da borda gerada (= traço do corpo na fonte)
+const CLOSE_BAND = 7;       // alcance da busca pelas pontas de traço existentes
 
 const dilate = (src, w, h, r) => {
   const out = new Uint8Array(w * h);
@@ -86,26 +91,6 @@ const dilate = (src, w, h, r) => {
           if (nx >= 0 && nx < w) out[ny * w + nx] = 1;
         }
       }
-    }
-  }
-  return out;
-};
-
-const erode = (src, w, h, r) => {
-  const out = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (!src[y * w + x]) continue;
-      let all = true;
-      for (let dy = -r; dy <= r && all; dy++) {
-        const ny = y + dy;
-        if (ny < 0 || ny >= h) { all = false; break; }
-        for (let dx = -r; dx <= r; dx++) {
-          const nx = x + dx;
-          if (nx < 0 || nx >= w || !src[ny * w + nx]) { all = false; break; }
-        }
-      }
-      if (all) out[y * w + x] = 1;
     }
   }
   return out;
@@ -133,16 +118,28 @@ function outsideOf(black, w, h) {
   return outside;
 }
 
-/** Contorno (anel de GREY_RING px) dos objetos cinza soltos. */
-function greyObjectRing(data, w, h, CH) {
+/**
+ * Retas que fecham a letra onde um objeto cinza tapou a borda: uma barra de
+ * CLOSE_STROKE px no lado do objeto voltado para o corpo, cobrindo do começo ao
+ * fim das pontas de traço que encostam nele. Devolve também o que **apagar**:
+ * a sobra das pontas que passava por baixo do objeto (sem isso o canto fica com
+ * a ponta arredondada antiga grudada na reta nova).
+ */
+function greyObjectClosers(data, w, h, CH) {
   const black = new Uint8Array(w * h);
   const grey = new Uint8Array(w * h);
+  let sumX = 0, sumY = 0, bodyPx = 0; // centroide do corpo (preto + colorido)
   for (let i = 0; i < w * h; i++) {
     const o = i * CH;
     const r = data[o], g = data[o + 1], b = data[o + 2];
     const mx = Math.max(r, g, b);
     black[i] = mx <= STROKE_MAX ? 1 : 0;
     grey[i] = !black[i] && mx <= GREY_MAX && mx - Math.min(r, g, b) <= GREY_NEUTRAL ? 1 : 0;
+    if (!black[i] && mx - Math.min(r, g, b) > GREY_NEUTRAL) {
+      sumX += i % w;
+      sumY += (i / w) | 0;
+      bodyPx++;
+    }
   }
   // franja de antialiasing: cinza a até 2 px do preto não é objeto
   const nearBlack = dilate(black, w, h, 2);
@@ -153,21 +150,23 @@ function greyObjectRing(data, w, h, CH) {
   // componentes: fica só o que é exposto (não cercado por preto) e grande
   const label = new Int32Array(w * h).fill(-1);
   const stack = new Int32Array(w * h);
-  const keep = new Uint8Array(w * h);
+  const objects = [];
   for (let start = 0; start < w * h; start++) {
     if (!grey[start] || label[start] !== -1) continue;
-    const id = start; // marcador local, não precisa ser sequencial
     let sp = 0;
     stack[sp++] = start;
-    label[start] = id;
-    const members = [];
-    let exposed = 0;
+    label[start] = start;
+    let area = 0, exposed = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
     while (sp > 0) {
       const i = stack[--sp];
       const x = i % w;
       const y = (i / w) | 0;
-      members.push(i);
+      area++;
       if (outside[i]) exposed++;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
       for (let dy = -1; dy <= 1; dy++) {
         const ny = y + dy;
         if (ny < 0 || ny >= h) continue;
@@ -175,38 +174,84 @@ function greyObjectRing(data, w, h, CH) {
           const nx = x + dx;
           if (nx < 0 || nx >= w) continue;
           const j = ny * w + nx;
-          if (grey[j] && label[j] === -1) { label[j] = id; stack[sp++] = j; }
+          if (grey[j] && label[j] === -1) { label[j] = start; stack[sp++] = j; }
         }
       }
     }
-    if (members.length >= GREY_MIN_AREA && exposed * 2 >= members.length) {
-      for (const i of members) keep[i] = 1;
-    }
+    if (area >= GREY_MIN_AREA && exposed * 2 >= area) objects.push({ x0, y0, x1, y1 });
   }
 
-  // closing: a lata tem ranhuras e brilho; sem fechar, o anel vira pente
-  const silh = erode(dilate(keep, w, h, GREY_CLOSE), w, h, GREY_CLOSE);
-  const inner = erode(silh, w, h, GREY_RING);
-  const ring = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) ring[i] = silh[i] && !inner[i] ? 1 : 0;
-  return ring;
+  const closers = new Uint8Array(w * h);
+  const trim = new Uint8Array(w * h);
+  if (objects.length === 0 || bodyPx === 0) return { closers, trim };
+  const cx = sumX / bodyPx;
+  const cy = sumY / bodyPx;
+
+  const blackIn = (bx0, by0, bx1, by1) => {
+    const pts = [];
+    for (let y = Math.max(0, by0); y <= Math.min(h - 1, by1); y++) {
+      for (let x = Math.max(0, bx0); x <= Math.min(w - 1, bx1); x++) {
+        if (black[y * w + x]) pts.push({ x, y });
+      }
+    }
+    return pts;
+  };
+  const paint = (target, x0, y0, x1, y1) => {
+    for (let y = Math.max(0, y0); y <= Math.min(h - 1, y1); y++) {
+      for (let x = Math.max(0, x0); x <= Math.min(w - 1, x1); x++) target[y * w + x] = 1;
+    }
+  };
+
+  for (const o of objects) {
+    const dx = cx - (o.x0 + o.x1) / 2;
+    const dy = cy - (o.y0 + o.y1) / 2;
+    const vertical = Math.abs(dx) >= Math.abs(dy);
+    const right = dx > 0;
+    // pontas de traço do lado do corpo, dentro da faixa
+    const pts = vertical
+      ? blackIn(right ? o.x1 + 1 : o.x0 - CLOSE_BAND, o.y0 - CLOSE_BAND,
+        right ? o.x1 + CLOSE_BAND : o.x0 - 1, o.y1 + CLOSE_BAND)
+      : blackIn(o.x0 - CLOSE_BAND, dy > 0 ? o.y1 + 1 : o.y0 - CLOSE_BAND,
+        o.x1 + CLOSE_BAND, dy > 0 ? o.y1 + CLOSE_BAND : o.y0 - 1);
+    if (pts.length === 0) continue;
+
+    if (vertical) {
+      const ymin = Math.min(...pts.map((p) => p.y));
+      const ymax = Math.max(...pts.map((p) => p.y));
+      paint(closers, right ? o.x1 + 1 : o.x0 - CLOSE_STROKE, ymin,
+        right ? o.x1 + CLOSE_STROKE : o.x0 - 1, ymax);
+      // apaga a ponta antiga que passava por baixo do objeto
+      if (right) paint(trim, o.x0 - CLOSE_BAND, ymin - 2, o.x1, ymax + 2);
+      else paint(trim, o.x0, ymin - 2, o.x1 + CLOSE_BAND, ymax + 2);
+    } else {
+      const xmin = Math.min(...pts.map((p) => p.x));
+      const xmax = Math.max(...pts.map((p) => p.x));
+      paint(closers, xmin, dy > 0 ? o.y1 + 1 : o.y0 - CLOSE_STROKE,
+        xmax, dy > 0 ? o.y1 + CLOSE_STROKE : o.y0 - 1);
+      if (dy > 0) paint(trim, xmin - 2, o.y0 - CLOSE_BAND, xmax + 2, o.y1);
+      else paint(trim, xmin - 2, o.y0, xmax + 2, o.y1 + CLOSE_BAND);
+    }
+  }
+  return { closers, trim };
 }
 
 /** Arte colorida -> máscara preto/branco (traço), escrita em TMP. */
 async function strokeMask(file, outFile) {
   const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
   const { width: w, height: h, channels: CH } = info;
-  const ring = greyObjectRing(data, w, h, CH);
+  const { closers, trim } = greyObjectClosers(data, w, h, CH);
   const buf = Buffer.alloc(w * h);
-  let outlined = 0;
+  let drawn = 0, erased = 0;
   for (let i = 0; i < w * h; i++) {
     const o = i * CH;
     const mx = Math.max(data[o], data[o + 1], data[o + 2]);
-    const ink = mx <= STROKE_MAX || ring[i];
-    if (ring[i]) outlined++;
+    const stroke = mx <= STROKE_MAX && !trim[i];
+    const ink = stroke || closers[i];
+    if (closers[i] && mx > STROKE_MAX) drawn++;
+    if (mx <= STROKE_MAX && trim[i]) erased++;
     buf[i] = ink ? 0 : 255;
   }
-  if (outlined) log(`    ${path.basename(file)}: ${outlined} px de contorno de objeto`);
+  if (drawn) log(`    ${path.basename(file)}: ${drawn} px de borda fechada, ${erased} px de sobra aparada`);
   await sharp(buf, { raw: { width: w, height: h, channels: 1 } })
     .png({ compressionLevel: 9 })
     .toFile(outFile);
