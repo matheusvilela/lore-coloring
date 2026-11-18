@@ -6,13 +6,13 @@ import { usePinchZoom } from './canvas/zoom';
 import { Confirm } from './components/Confirm';
 import { Dock } from './components/Dock';
 import { LetterGrid } from './components/LetterGrid';
-import { LETTERS, assetUrl, type Letter } from './data/letters';
+import { ALPHABETS, assetUrl, isLangId, storageKey, type Alphabet, type LangId } from './data/letters';
 import { DEFAULT_COLOR } from './data/palette';
 import {
   getBase,
   getHistory,
   getPaint,
-  paintedLetters,
+  paintedKeys,
   queueDeleteAllPaint,
   queueLetterPersist,
   queuePaintDelete,
@@ -22,17 +22,29 @@ import {
 type Screen = 'studio' | 'grid';
 type SheetSize = { w: number; h: number; contentW: number; contentH: number };
 
-function preload(letter: string | undefined): void {
+const LANG_KEY = 'lore:lang';
+
+function savedLang(): LangId {
+  try {
+    const value = localStorage.getItem(LANG_KEY);
+    if (isLangId(value)) return value;
+  } catch {
+    /* modo privado */
+  }
+  return 'latin';
+}
+
+function preload(alphabet: Alphabet, letter: string | undefined): void {
   if (!letter) return;
   for (const file of ['ink.png', 'region.png']) {
     const img = new Image();
-    img.src = assetUrl(letter, file);
+    img.src = assetUrl(alphabet, letter, file);
   }
 }
 
 const AUTOSAVE_MS = 800;
 
-function queuePersistLetter(painter: Painter, letter: Letter): Promise<void> {
+function queuePersistLetter(painter: Painter, letter: string): Promise<void> {
   const history = painter.exportHistory();
   const historyJson = history.length > 0 ? JSON.stringify(history) : null;
   const snapshotPromise = Promise.all([painter.exportPaintBlob(), painter.exportBaseBlob()]).then(
@@ -47,9 +59,10 @@ export default function App() {
   const pagerRef = useRef<HTMLElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const painterRef = useRef<Painter | null>(null);
-  const letterRef = useRef<Letter>('A');
+  /** Chave (IndexedDB + sessão do painter) da letra na tela. */
+  const letterKeyRef = useRef('A');
   /** Letra cujos pixels estão na camada de cor (só muda após loadLetter commitar). */
-  const canvasLetterRef = useRef<Letter>('A');
+  const canvasLetterRef = useRef('A');
   const loadGenRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const scheduleSaveRef = useRef<() => void>(() => {});
@@ -58,7 +71,9 @@ export default function App() {
   const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [painted, setPainted] = useState<Set<string>>(new Set());
 
-  const [index, setIndex] = useState(0);
+  const [langId, setLangId] = useState<LangId>(savedLang);
+  /** Cada alfabeto guarda a letra em que a criança estava. */
+  const [indexByLang, setIndexByLang] = useState<Record<LangId, number>>({ latin: 0, coreano: 0 });
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
@@ -74,12 +89,23 @@ export default function App() {
   const [sheetSize, setSheetSize] = useState<SheetSize | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
 
-  const letter = LETTERS[index]!;
-  letterRef.current = letter;
+  const alphabet = ALPHABETS[langId];
+  const index = Math.min(indexByLang[langId] ?? 0, alphabet.letters.length - 1);
+  const letterDef = alphabet.letters[index]!;
+  /** pasta do asset (`giyeok`), também o `data-letter` do palco */
+  const letter = letterDef.id;
+  /** chave da pintura (`coreano:giyeok`) */
+  const letterKey = storageKey(alphabet, letter);
+  letterKeyRef.current = letterKey;
 
   const refreshPainted = useCallback(async () => {
-    setPainted(await paintedLetters());
-  }, []);
+    const keys = await paintedKeys();
+    const inAlphabet = new Set<string>();
+    for (const item of alphabet.letters) {
+      if (keys.has(storageKey(alphabet, item.id))) inAlphabet.add(item.id);
+    }
+    setPainted(inAlphabet);
+  }, [alphabet]);
 
   const cancelSaveTimer = useCallback(() => {
     if (saveTimer.current !== null) {
@@ -291,49 +317,68 @@ export default function App() {
     void (async () => {
       cancelSaveTimer();
 
-      const { outgoing, token } = painter.hold(letter);
+      const { outgoing, token } = painter.hold(letterKey);
       if (outgoing) {
-        await queuePersistLetter(painter, outgoing as Letter);
+        await queuePersistLetter(painter, outgoing);
         await refreshPainted();
       }
 
-      const { sessionRestored } = await painter.loadLetter(letter, token);
-      if (gen !== loadGenRef.current || painter.getSettledLetter() !== letter) return;
+      const { sessionRestored } = await painter.loadLetter(letterKey, letter, alphabet, token);
+      if (gen !== loadGenRef.current || painter.getSettledLetter() !== letterKey) return;
 
-      canvasLetterRef.current = letter;
+      canvasLetterRef.current = letterKey;
       if (!sessionRestored) {
-        const historyBlob = await getHistory(letter);
-        const baseBlob = await getBase(letter);
-        const paintBlob = await getPaint(letter);
+        const historyBlob = await getHistory(letterKey);
+        const baseBlob = await getBase(letterKey);
+        const paintBlob = await getPaint(letterKey);
 
         if (historyBlob) {
           const saved = parseSavedHistory(await historyBlob.text());
           if (baseBlob) await painter.restoreBase(baseBlob, token);
-          if (gen !== loadGenRef.current || painter.getSettledLetter() !== letter) return;
+          if (gen !== loadGenRef.current || painter.getSettledLetter() !== letterKey) return;
           painter.restoreHistory(saved, token);
         } else if (paintBlob) {
           await painter.restoreBase(paintBlob, token);
         }
       }
 
-      preload(LETTERS[(index + 1) % LETTERS.length]);
-      preload(LETTERS[(index - 1 + LETTERS.length) % LETTERS.length]);
+      preload(alphabet, alphabet.letters[(index + 1) % alphabet.letters.length]?.id);
+      preload(alphabet, alphabet.letters[(index - 1 + alphabet.letters.length) % alphabet.letters.length]?.id);
     })();
-  }, [letter, index, painterReady, cancelSaveTimer, refreshPainted]);
+  }, [letterKey, letter, alphabet, index, painterReady, cancelSaveTimer, refreshPainted]);
 
   const openGrid = useCallback(() => {
     void flushSave().then(() => setScreen('grid'));
   }, [flushSave]);
 
-  const pickLetter = useCallback((picked: Letter) => {
-    const next = LETTERS.indexOf(picked);
-    if (next >= 0) setIndex(next);
-    setScreen('studio');
+  const pickLetter = useCallback(
+    (picked: string) => {
+      const next = alphabet.letters.findIndex((item) => item.id === picked);
+      if (next >= 0) setIndexByLang((prev) => ({ ...prev, [langId]: next }));
+      setScreen('studio');
+    },
+    [alphabet, langId],
+  );
+
+  const pickLang = useCallback((next: LangId) => {
+    setLangId(next);
+    try {
+      localStorage.setItem(LANG_KEY, next);
+    } catch {
+      /* modo privado */
+    }
   }, []);
 
-  const go = useCallback((delta: number) => {
-    setIndex((current) => (current + delta + LETTERS.length) % LETTERS.length);
-  }, []);
+  const go = useCallback(
+    (delta: number) => {
+      setIndexByLang((prev) => {
+        const current = prev[langId] ?? 0;
+        const count = alphabet.letters.length;
+        return { ...prev, [langId]: (current + delta + count) % count };
+      });
+    },
+    [alphabet, langId],
+  );
 
   const undo = useCallback(() => {
     painterRef.current?.undo();
@@ -344,10 +389,10 @@ export default function App() {
   }, []);
 
   const clearLetter = useCallback(
-    (target?: Letter) => {
-      const key = target ?? letterRef.current;
+    (target?: string) => {
+      const key = target ?? letterKeyRef.current;
       const painter = painterRef.current;
-      if (key === letterRef.current) painter?.clear();
+      if (key === letterKeyRef.current) painter?.clear();
       else painter?.discardSession(key);
       void (async () => {
         await queuePaintDelete(key);
@@ -363,10 +408,10 @@ export default function App() {
     painter?.clear();
     painter?.discardAllSessions();
     void (async () => {
-      await queueDeleteAllPaint();
+      await queueDeleteAllPaint(alphabet.letters.map((item) => storageKey(alphabet, item.id)));
       await refreshPainted();
     })();
-  }, [refreshPainted]);
+  }, [alphabet, refreshPainted]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -398,8 +443,13 @@ export default function App() {
 
   return (
     <div className="app" ref={appRef}>
-      <p className="letter-status" role="status" aria-live="polite">
-        {letter}
+      <p
+        className="letter-status"
+        role="status"
+        aria-live="polite"
+        lang={langId === 'coreano' ? 'ko' : undefined}
+      >
+        {letterDef.glyph}
       </p>
 
       <main className="stage" ref={stageRef}>
@@ -471,7 +521,7 @@ export default function App() {
       {confirmClearAll ? (
         <Confirm
           title="Limpar tudo?"
-          message="Apaga a pintura de todas as 26 letras. Não dá para desfazer depois de fechar o aviso."
+          message={`Apaga a pintura de ${alphabet.countLabel}. Não dá para desfazer depois de fechar o aviso.`}
           confirmLabel="Limpar tudo"
           onCancel={() => setConfirmClearAll(false)}
           onConfirm={clearAll}
@@ -480,12 +530,14 @@ export default function App() {
 
       {screen === 'grid' ? (
         <LetterGrid
+          alphabet={alphabet}
           current={letter}
           painted={painted}
           onPick={pickLetter}
           onClose={() => setScreen('studio')}
           onClearLetter={clearLetter}
           onClearAll={() => setConfirmClearAll(true)}
+          onPickLang={pickLang}
         />
       ) : null}
     </div>

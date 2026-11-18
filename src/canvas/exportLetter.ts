@@ -1,4 +1,4 @@
-import { assetUrl } from '../data/letters';
+import { type Alphabet, assetUrl, storageKey } from '../data/letters';
 import { getPaint } from '../storage/db';
 import { CANVAS_H, CANVAS_W } from './Painter';
 
@@ -7,8 +7,8 @@ export function letterPngFilename(letter: string): string {
 }
 
 /** Papel branco + pintura salva + tinta, na resolução do canvas de desenho. */
-export async function renderLetterPng(letter: string): Promise<Blob> {
-  const paintBlob = await getPaint(letter);
+export async function renderLetterPng(alphabet: Alphabet, letter: string): Promise<Blob> {
+  const paintBlob = await getPaint(storageKey(alphabet, letter));
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_W;
   canvas.height = CANVAS_H;
@@ -27,7 +27,7 @@ export async function renderLetterPng(letter: string): Promise<Blob> {
     }
   }
 
-  const ink = await loadImage(assetUrl(letter, 'ink.png'));
+  const ink = await loadImage(assetUrl(alphabet, letter, 'ink.png'));
   ctx.drawImage(ink, 0, 0, CANVAS_W, CANVAS_H);
 
   const blob = await new Promise<Blob | null>((resolve) => {

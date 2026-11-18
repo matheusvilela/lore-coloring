@@ -1,6 +1,6 @@
 # Decisões — App de colorir "Alfabeto Lore"
 
-**Status:** aprovado (MVP) · **Data:** 17/11/2026 · **Rev.:** 7 · **Alvo:** celular, tablet e desktop (mesma build)
+**Status:** aprovado (MVP) · **Data:** 18/11/2026 · **Rev.:** 8 · **Alvo:** celular, tablet e desktop (mesma build)
 
 ---
 
@@ -120,7 +120,7 @@ Motivo: o resultado fica idêntico em qualquer aparelho, o custo do balde é pre
 ### D9 · Navegação
 
 - Setas grandes ‹ › entre A…Z, com a letra atual em destaque; a letra abre já pintada.
-- Botão de **grade com as 26 miniaturas**, acessível a qualquer momento: cada célula é a **própria pintura salva**, então letras já pintadas aparecem coloridas e as demais aparecem em branco. Não há marcação de "concluída" — a criança vai para a próxima quando estiver satisfeita.
+- Botão de **grade com as miniaturas**, acessível a qualquer momento: cada célula é a **própria pintura salva**, então letras já pintadas aparecem coloridas e as demais aparecem em branco. Não há marcação de "concluída" — a criança vai para a próxima quando estiver satisfeita. A grade também troca de alfabeto (D17).
 - Depois do `Z`, a seta › leva para a grade = "ver todas as pintadas".
 - A grade é a tela de "álbum" pedida — não existe álbum separado.
 
@@ -132,7 +132,7 @@ Nenhuma dependência de áudio no bundle. A camada de desenho emite eventos de d
 
 - Repositório: **`lore-coloring`**, público (Pages em repo privado exige plano pago). URL: `https://<user>.github.io/lore-coloring/`.
 - Push na `main` → GitHub Actions roda testes + build → publica em Pages.
-- `base: '/lore-coloring/'` no Vite; service worker via `vite-plugin-pwa` (precache das 26 letras, offline total, "adicionar à tela de início").
+- `base: '/lore-coloring/'` no Vite; service worker via `vite-plugin-pwa` (precache das 26 letras + 40 jamo, offline total, "adicionar à tela de início").
 - **Sem domínio próprio (decidido).** Consequência aceita: `*.github.io` é origem compartilhada entre todos os project pages do seu usuário — o IndexedDB do app divide cota com seus outros projetos e a identidade do PWA fica presa a esse host. Mitigações baratas: prefixar todas as chaves de storage (`lore:`), não mudar o nome do repo (mudar repo muda a URL) e não depender de cota grande (o app usa poucos MB).
 - **Oracle Cloud Free Tier: rejeitado para o MVP.** Não há backend; VM só adiciona nginx, certbot e deploy. Fica como opção futura (sincronizar entre dispositivos, álbum em PDF) — o app nasce local-first, então isso é aditivo.
 
@@ -208,7 +208,20 @@ O pipeline nasceu para as 26 latinas, que já vêm em traço preto. Para outras 
 - **A pupila do `ㅉ` ganha contorno gerado.** No original ela é **magenta**, sem linha, e sem ela o olho ficaria vazio: é a única exceção à regra "entra linha, sai valor". O config lista a caixa da pupila (`outline`) e o pipeline desenha um anel de **1 px da fonte** (6,7 px no render, ~¼ da espessura do traço) **por fora** da forma colorida — o miolo continua branco e pintável.
 - **Canvas uniforme** de mesma proporção das latinas (309 × 236 ↔ 329 × 251) → o resto do pipeline (`viewBox` compartilhado, 2048 × 1562, `region.png`, `thumb`) roda **sem nenhuma alteração**.
 - **Idioma é argumento**: `node scripts/build-assets.mjs [latin|coreano|all]`. Os artefatos são commitados como os latinos; CI continua sem potrace.
-- O coreano **não está na UI** ainda: `public/coreano/` existe, mas nenhuma tela o carrega. Detalhes e medições na seção 8.
+- O coreano **entrou na UI** na rev. 8 (D17): a bandeira na grade troca de alfabeto, e os dois conjuntos ficam no precache. Detalhes e medições na seção 8.
+
+### D17 · Seletor de alfabeto (latim ↔ coreano)
+
+O app carrega **dois alfabetos** com a mesma tela: 26 letras latinas e os 40 jamo coreanos. O que muda é a arte; motor de pintura, canvas, balde e persistência são os mesmos.
+
+- **Botão na grade, não no estúdio.** A troca fica no canto superior direito da grade (o "álbum"), ao lado da lixeira, com a **bandeira do alfabeto atual**. As bandeiras são **os SVGs oficiais da Wikimedia Commons** (domínio público), servidos de `src/assets/bandeiras/` — emoji cai para as letras "BR"/"KR" no Chrome do Windows, e uma versão "simplificada" desenhada à mão erra detalhes (o sentido da faixa do Brasil, a orientação do taegeuk). O botão abre um menu flutuante com a mesma receita de vidro do popover de espessura, listando `<bandeira> Português` e `<bandeira> Coreano`, com check no atual. Escolher fecha o menu e troca a grade; `Escape` e toque fora também fecham. O menu é portal para o `body` e se ancora abaixo do botão, alinhado pela direita.
+- **Cada alfabeto lembra onde a criança estava.** `indexByLang` guarda a letra por idioma; trocar de alfabeto e voltar retorna à mesma letra.
+- **Escolha persiste em `localStorage` (`lore:lang`), sem rota.** GitHub Pages é estático e não há URL por idioma; a última escolha vale para o próximo acesso. A chave fica fora do IndexedDB porque é configuração, não pintura.
+- **Chaves de pintura separadas, sem migração.** O latim mantém o formato antigo (`lore:paint:A`) para não apagar o que as crianças já pintaram; o coreano nasce prefixado (`lore:paint:coreano:giyeok`). `Painter.loadLetter(key, letter, alphabet)` e `renderLetterPng(alphabet, letter)` recebem as duas coisas: a chave identifica a sessão/armazenamento e a letra identifica a pasta do asset.
+- **"Limpar tudo" apaga só o alfabeto da tela.** `queueDeleteAllPaint(keys)` recebe as chaves do alfabeto atual e apaga pintura, histórico e base de cada uma; **não** dá `clear()` no store, que levaria o outro idioma junto.
+- **Os dois alfabetos vão no precache.** O service worker sobe de ~2,3 MB para ~5 MB (547 entradas) no primeiro acesso. Aceito: o seletor tem que funcionar offline na primeira troca, e 5 MB é barato para um app que já é offline-first.
+- **A arte coreana continua preto e branco**, sem preenchimentos: o traço é o mesmo produto das latinas (D16), então a criança pinta com a paleta normal. Consequência aceita: o bbox mais largo deixa os jamo ~20% menores que as latinas (§8.4).
+- **Acessibilidade**: o botão anuncia `Alfabeto: Coreano. Trocar alfabeto`; o menu usa `role="menu"` com `menuitemradio`/`aria-checked`. No estúdio, `data-letter` expõe o id do asset (`giyeok`) e o `<p role="status">` mostra o glifo (`ㄱ`) com `lang="ko"`, para o leitor de tela não ler "caixa".
 
 ---
 
@@ -278,7 +291,7 @@ O pipeline nasceu para as 26 latinas, que já vêm em traço preto. Para outras 
 2. **Paleta de 24 pode ficar apagada.** Os 8 tons extras de alta saturação que eu havia proposto (magenta `#E64980`, ciano `#22D3EE`, roxo vivo `#7048E8`, laranja-neon `#FF922B`, dourado `#FAB005`, rosa-chiclete `#FF8FCF`, marrom `#8B5E34`, cinza-claro `#CED4DA`) foram retirados junto com a mudança de ordem. Reavaliar depois do primeiro teste com a criança.
 3. **Retrato de celular: a letra em 100% continua pequena.** ~~Resolvido~~ **Resolvido por outro caminho (rev. 6).** A arte é paisagem (1,31:1), então a folha em retrato é limitada pela largura: 370 × 282 num iPhone de 390, e no tamanho de encaixe ela não cresce mais. Tentei canvas por letra (ganho medido de 2,75× de área mediana) e **descartei** pelos motivos de D7. A solução adotada foi **pinça/zoom até 4×** (D15), que dá o mesmo "pintar o olho da letra" sem mudar a régua. A folga vertical que sobrou entre a folha e o dock não é mais desperdício: virou faixa das setas no celular. Continua em aberto, se o teste com a criança pedir, **abrir já ampliado no bbox da letra** ao trocar de página (zoom inicial em vez de 1×).
 4. **Letra apagada até o fim conta como "pintada".** O histórico tem comandos de borracha, então `hasPaint()` continua verdadeiro com a tela em branco. Na Etapa 4 isso apareceria na grade como uma miniatura em branco. Decidir lá: salvar só se houver píxel não transparente (checagem barata no momento do save) e, se não houver, apagar o blob.
-5. **Coreano fora da UI.** Os 40 jamo já estão recortados, vetorizados e medidos em `public/coreano/`, mas nenhuma tela os carrega. Antes de ligar: seletor de idioma e lista de letras por idioma.
+5. **~~Coreano fora da UI.~~ Resolvido (rev. 8).** Os 40 jamo estão na grade, atrás da bandeira no canto da tela, com lista de letras e chaves de armazenamento por idioma (D17 e §8.4).
 
 ---
 
@@ -478,11 +491,11 @@ Recortes coloridos para conferência em `_qa/coreano/conferencia.png`; traço fi
 | contorno gerado | pupila do `ㅉ`: anel de 1 px da fonte por fora da forma magenta (101 px nas duas) |
 | objetos em cinza (sem contorno) | latas do `ㅛ`: a letra é fechada com uma reta no lugar da borda que a lata escondia (344 px desenhados, 116 px de sobra aparada); brilho da lente do `ㅟ` fica fora por ser sombra interna |
 
-### 8.4 O que muda quando o coreano entrar na UI
+### 8.4 O que mudou quando o coreano entrou na UI
 
 1. **A arte coreana é mais larga.** Como o bbox é justo (união do traço), 307 × 188 = 1,63:1, contra 1,31:1 das latinas. Na mesma canvas de 2048 × 1562 a tinta ocupa 80% da altura — as letras ficam ~20% menores que as latinas. Inevitável sem canvas por idioma (D7 continua valendo para o app). Se incomodar no teste, o caminho é o mesmo de D7: canvas por **idioma**, não por letra.
 2. **O balde pinta o corpo da letra, como nas latinas.** Todo jamo tem região interna: são **4 a 20 regiões por letra**, das quais **1 a 10 são pintáveis** (não encostam na borda da página), e o corpo da letra é uma região fechada em todos os 40. O que muda é o **tamanho**: a maior região vai de **1,9% a 14,4%** do canvas, contra **12,1% a 46,7%** nas latinas. Não é traço aberto — nas latinas a maior região é o *contador* da letra (o buraco do `A`, do `O`), enquanto no jamo é o **corpo do traço**, uma faixa fina e comprida. Por isso a heurística latina "maior% < 8" marca 27 de 40 sem indicar defeito: ela mede tamanho, não abertura. O único jamo que realmente vazava era o `ㄴ`, por uma fresta de 1 px na quina (ver §8.2), já corrigida — a menor região pintável subiu de 0,2% para 1,9%.
-3. **Seletor de idioma e roteamento** (`/lore-coloring/` + `?lang=ko` ou caminho) e a lista de letras em `data/letters.ts` passando a ser por idioma — nada disso existe ainda.
+3. **A tela é a mesma; muda a lista de letras.** O seletor de idioma vive na grade (D17), a escolha persiste em `lore:lang` e cada alfabeto tem a sua própria lista em `src/data/letters.ts`. A grade passa de 26 para 40 células sem mudar o layout (a grade é fluida), e o `Painter` recebe `(chave, letra, alfabeto)`: o canvas de 2048 × 1562 é compartilhado, então zoom, pinça, balde e export continuam idênticos. No armazenamento, o latim fica nas chaves antigas e o coreano usa o prefixo `coreano:`; "limpar tudo" apaga só as chaves do alfabeto na tela. Os 40 jamo entram no precache junto com as 26 latinas (D17).
 
 ### 8.5 Como regerar
 

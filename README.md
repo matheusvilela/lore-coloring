@@ -1,6 +1,8 @@
 # lore-coloring
 
 App de colorir com as letras do *Alphabet Lore*, para celular, tablet e desktop.
+Dois alfabetos na mesma tela: as 26 letras latinas e os 40 jamo coreanos — a
+bandeira no canto da grade troca.
 
 **Versão publicada:** https://matheusvilela.github.io/lore-coloring/
 
@@ -49,6 +51,8 @@ clara se o Node estiver fora da faixa do Vite 8 ou se faltar `npm ci`.
   (1×–4×) e arrasta a folha. O primeiro dedo de uma pinça não deixa risco.
 - **Teclado**: `←`/`→` trocam de letra, `Ctrl/Cmd+Z` desfaz, `0` volta o zoom.
 - **Trackpad**: pinça (equivale a `ctrl` + roda) amplia a folha.
+- **Alfabeto**: na grade, o botão da bandeira (ao lado da lixeira) troca entre
+  português e coreano; a escolha fica salva.
 
 ### Testes
 
@@ -66,6 +70,6 @@ rodando.
 - `assets-src/letras/` — sprites originais (raster, 329×251)
 - `assets-src/coreano/` — folha colorida dos jamo + os 40 recortes
 - `public/letras/{A..Z}/` — artefatos de runtime gerados e commitados
-- `public/coreano/{jamo}/` — idem para o coreano (ainda sem tela que carregue)
+- `public/coreano/{jamo}/` — idem para o coreano, carregado pela troca de alfabeto
 - `src/canvas/` — motor de pintura (camadas, comandos, undo, balde)
 - `e2e/` — testes de ponta a ponta

@@ -1,5 +1,4 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import { LETTERS } from '../data/letters';
 
 interface LoreDB extends DBSchema {
   paint: {
@@ -128,14 +127,26 @@ export function queuePaintDelete(letter: string): Promise<void> {
   });
 }
 
-export async function queueDeleteAllPaint(): Promise<void> {
-  for (const letter of LETTERS) bumpWriteSeq(letter);
-  await Promise.all([...LETTERS].map((letter) => awaitPaintWrites(letter)));
-  await (await database()).clear(STORE);
+/**
+ * Apaga a pintura das letras informadas. Recebe chaves de armazenamento, não
+ * letras soltas: "limpar tudo" na grade apaga só o alfabeto da tela, então não
+ * pode dar `clear()` no store inteiro.
+ */
+export async function queueDeleteAllPaint(keys: readonly string[]): Promise<void> {
+  for (const key of keys) bumpWriteSeq(key);
+  await Promise.all(keys.map((key) => awaitPaintWrites(key)));
+  const db = await database();
+  await Promise.all(
+    keys.flatMap((key) => [
+      db.delete(STORE, paintKey(key)),
+      db.delete(STORE, historyKey(key)),
+      db.delete(STORE, baseKey(key)),
+    ]),
+  );
 }
 
-/** Letras que têm blob salvo (sufixo após `lore:paint:`). */
-export async function paintedLetters(): Promise<Set<string>> {
+/** Chaves de armazenamento que têm pintura salva (sufixo após `lore:paint:`). */
+export async function paintedKeys(): Promise<Set<string>> {
   const keys = await (await database()).getAllKeys(STORE);
   const out = new Set<string>();
   for (const key of keys) {
