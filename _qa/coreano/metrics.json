@@ -16,7 +16,7 @@
     "w": 2048,
     "h": 1254
   },
-  "total": 2414638,
+  "total": 2402390,
   "metrics": [
     {
       "letter": "giyeok",
@@ -84,11 +84,11 @@
     },
     {
       "letter": "jieut",
-      "paths": 7,
-      "regions": 14,
+      "paths": 2,
+      "regions": 13,
       "paintable": 6,
       "largestPct": 11.4,
-      "bytes": 96916
+      "bytes": 87274
     },
     {
       "letter": "chieut",
@@ -100,11 +100,11 @@
     },
     {
       "letter": "kieuk",
-      "paths": 2,
+      "paths": 1,
       "regions": 8,
       "paintable": 4,
       "largestPct": 10.1,
-      "bytes": 48541
+      "bytes": 45935
     },
     {
       "letter": "tieut",

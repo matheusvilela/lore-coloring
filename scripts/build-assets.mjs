@@ -38,6 +38,16 @@ const LANGS = {
     qa: '_qa/coreano',
     letters: JAMO.map((j, i) => ({ id: j.name, label: `${i + 1}. ${j.name} ${j.glyph}` })),
     ink: 'stroke',
+    // Adereços da arte que não fazem parte da letra: saem do traço, mas ficam no
+    // recorte colorido (a conferência e a prova de recorte continuam valendo).
+    // Coordenadas no recorte, 309 × 236.
+    drop: {
+      kieuk: [{ x0: 129, y0: 41, x1: 166, y1: 64 }],            // "whoosh" acima da letra
+      jieut: [
+        { x0: 62, y0: 51, x1: 113, y1: 70 },                     // palavra "WAND"
+        { x0: 78, y0: 71, x1: 91, y1: 93 },                      // seta; a varinha fica
+      ],
+    },
   },
 };
 
@@ -345,7 +355,7 @@ function sealLeaks(data, w, h, CH, ink) {
 }
 
 /** Arte colorida -> máscara preto/branco (traço), escrita em TMP. */
-async function strokeMask(file, outFile) {
+async function strokeMask(file, outFile, drop = []) {
   const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
   const { width: w, height: h, channels: CH } = info;
   const { closers, trim } = greyObjectClosers(data, w, h, CH);
@@ -359,12 +369,22 @@ async function strokeMask(file, outFile) {
     if (closers[i] && mx > STROKE_MAX) drawn++;
     if (mx <= STROKE_MAX && trim[i]) erased++;
   }
+  let dropped = 0;
+  for (const b of drop) {
+    for (let y = Math.max(0, b.y0); y <= Math.min(h - 1, b.y1); y++) {
+      for (let x = Math.max(0, b.x0); x <= Math.min(w - 1, b.x1); x++) {
+        const i = y * w + x;
+        if (ink[i]) { ink[i] = 0; dropped++; }
+      }
+    }
+  }
   const sealed = sealLeaks(data, w, h, CH, ink);
   const buf = Buffer.alloc(w * h);
   for (let i = 0; i < w * h; i++) buf[i] = ink[i] ? 0 : 255;
   const parts = [];
   if (drawn) parts.push(`${drawn} px de borda fechada`);
   if (erased) parts.push(`${erased} px de sobra aparada`);
+  if (dropped) parts.push(`${dropped} px de adereço removido`);
   if (sealed) parts.push(`${sealed} px de fresta fechada`);
   if (parts.length) log(`    ${path.basename(file)}: ${parts.join(', ')}`);
   await sharp(buf, { raw: { width: w, height: h, channels: 1 } })
@@ -541,7 +561,7 @@ async function build(langId, cfg) {
     if (!fs.existsSync(source)) throw new Error(`faltando ${source}`);
     if (cfg.ink === 'stroke') {
       const mask = path.join(TMP, `${langId}-${id}.png`);
-      await strokeMask(source, mask);
+      await strokeMask(source, mask, cfg.drop?.[id]);
       files.set(id, mask);
     } else {
       files.set(id, source);
