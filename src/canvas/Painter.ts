@@ -1,4 +1,4 @@
-import { assetUrl } from '../data/letters';
+import { type Alphabet, assetUrl } from '../data/letters';
 import type { SavedCommand } from './history';
 import { traceStroke, type Point } from './geometry';
 import { grainPattern } from './texture';
@@ -191,11 +191,20 @@ export class Painter {
     for (const letter of [...this.sessions.keys()]) this.discardSession(letter);
   }
 
-  /** Carrega a arte da letra; restaura pilha estacionada se existir. */
-  async loadLetter(letter: string, token: number): Promise<{ sessionRestored: boolean }> {
+  /**
+   * Carrega a arte da letra; restaura pilha estacionada se existir.
+   * `key` é a chave da pintura (o que identifica a sessão) e `letter` é a pasta
+   * do asset — no latim são iguais, no coreano a chave vem prefixada.
+   */
+  async loadLetter(
+    key: string,
+    letter: string,
+    alphabet: Alphabet,
+    token: number,
+  ): Promise<{ sessionRestored: boolean }> {
     const [inkImage, regionImage] = await Promise.all([
-      loadImage(assetUrl(letter, 'ink.png')),
-      loadImage(assetUrl(letter, 'region.png')),
+      loadImage(assetUrl(alphabet, letter, 'ink.png')),
+      loadImage(assetUrl(alphabet, letter, 'region.png')),
     ]);
     if (this.destroyed || token !== this.loadToken) return { sessionRestored: false };
 
@@ -204,13 +213,13 @@ export class Painter {
 
     this.readRegions(regionImage);
 
-    const sessionRestored = this.sessions.has(letter);
+    const sessionRestored = this.sessions.has(key);
     if (sessionRestored) {
-      const snap = this.sessions.get(letter)!;
+      const snap = this.sessions.get(key)!;
       this.commands = snap.commands;
       this.redoCommands = snap.redo;
       this.baseBitmap = snap.base;
-      this.sessions.delete(letter);
+      this.sessions.delete(key);
       this.current = null;
       if (this.frame) {
         cancelAnimationFrame(this.frame);
@@ -223,7 +232,7 @@ export class Painter {
       this.reset();
     }
 
-    this.settledLetter = letter;
+    this.settledLetter = key;
     return { sessionRestored };
   }
 

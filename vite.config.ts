@@ -14,13 +14,10 @@ export default defineConfig({
         'apple-touch-icon.png',
         'icons/**',
         'letras/**',
+        'coreano/**',
       ],
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,webp,svg,ico,woff2}'],
-        // O coreano está pronto em public/coreano/ mas ainda não tem tela: fica
-        // fora do precache para não baixar 2,3 MB que a criança não usa.
-        // Ao ligar o idioma na UI, remover esta linha.
-        globIgnores: ['**/coreano/**'],
         navigateFallback: '/lore-coloring/index.html',
       },
       manifest: {
