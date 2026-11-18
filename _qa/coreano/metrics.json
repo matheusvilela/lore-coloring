@@ -16,7 +16,7 @@
     "w": 2048,
     "h": 1254
   },
-  "total": 2402390,
+  "total": 2406778,
   "metrics": [
     {
       "letter": "giyeok",
@@ -213,10 +213,10 @@
     {
       "letter": "ssang-giyeok",
       "paths": 2,
-      "regions": 13,
-      "paintable": 8,
+      "regions": 15,
+      "paintable": 9,
       "largestPct": 7.7,
-      "bytes": 75869
+      "bytes": 80257
     },
     {
       "letter": "ssang-digeut",

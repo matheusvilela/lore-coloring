@@ -48,6 +48,15 @@ const LANGS = {
         { x0: 78, y0: 71, x1: 91, y1: 93 },                      // seta; a varinha fica
       ],
     },
+    // Preenchimentos coloridos que viram contorno fino em vez de sumir: a pupila
+    // magenta do `ㅉ` não tem linha nenhuma no original, mas sem ela o olho fica
+    // vazio. O anel é desenhado por fora da forma, então o miolo fica branco.
+    outline: {
+      'ssang-giyeok': [
+        { x0: 70, y0: 68, x1: 91, y1: 81 },                      // pupila esquerda
+        { x0: 140, y0: 67, x1: 159, y1: 81 },                    // pupila direita
+      ],
+    },
   },
 };
 
@@ -92,6 +101,7 @@ const CLOSE_BAND = 7;       // alcance da busca pelas pontas de traço existente
 const FILL_MIN_SAT = 40;    // matiz mínima do miolo
 const FILL_MIN_VALUE = 80;  // o miolo não é escuro
 const FILL_MIN_AREA = 1500; // adereço colorido é menor que isso
+const OUTLINE_RING = 1;     // espessura (px da fonte) do contorno fino gerado
 
 const dilate = (src, w, h, r) => {
   const out = new Uint8Array(w * h);
@@ -354,8 +364,48 @@ function sealLeaks(data, w, h, CH, ink) {
   return sealed;
 }
 
+/**
+ * Contorno fino em volta de um preenchimento declarado (a pupila magenta do
+ * `ㅉ`): o miolo colorido não é traço, mas a pupila precisa aparecer. O anel
+ * é desenhado **por fora** da forma, então o miolo continua branco e pintável.
+ */
+function outlineFills(data, w, h, CH, ink, boxes) {
+  let drawn = 0;
+  for (const b of boxes) {
+    const x0 = Math.max(0, b.x0), x1 = Math.min(w - 1, b.x1);
+    const y0 = Math.max(0, b.y0), y1 = Math.min(h - 1, b.y1);
+    const shape = [];
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const i = y * w + x;
+        if (ink[i]) continue;
+        const o = i * CH;
+        const r = data[o], g = data[o + 1], bl = data[o + 2];
+        const mx = Math.max(r, g, bl);
+        if (mx - Math.min(r, g, bl) > 30 && mx > 60) shape.push(i);
+      }
+    }
+    if (shape.length === 0) continue;
+    const isShape = new Uint8Array(w * h);
+    for (const i of shape) isShape[i] = 1;
+    for (const i of shape) {
+      const x = i % w;
+      const y = (i / w) | 0;
+      for (let dy = -OUTLINE_RING; dy <= OUTLINE_RING; dy++) {
+        for (let dx = -OUTLINE_RING; dx <= OUTLINE_RING; dx++) {
+          const ny = y + dy, nx = x + dx;
+          if (ny < 0 || ny >= h || nx < 0 || nx >= w) continue;
+          const j = ny * w + nx;
+          if (!ink[j] && !isShape[j]) { ink[j] = 1; drawn++; }
+        }
+      }
+    }
+  }
+  return drawn;
+}
+
 /** Arte colorida -> máscara preto/branco (traço), escrita em TMP. */
-async function strokeMask(file, outFile, drop = []) {
+async function strokeMask(file, outFile, drop = [], outline = []) {
   const { data, info } = await sharp(file).raw().toBuffer({ resolveWithObject: true });
   const { width: w, height: h, channels: CH } = info;
   const { closers, trim } = greyObjectClosers(data, w, h, CH);
@@ -378,6 +428,7 @@ async function strokeMask(file, outFile, drop = []) {
       }
     }
   }
+  const outlined = outlineFills(data, w, h, CH, ink, outline);
   const sealed = sealLeaks(data, w, h, CH, ink);
   const buf = Buffer.alloc(w * h);
   for (let i = 0; i < w * h; i++) buf[i] = ink[i] ? 0 : 255;
@@ -385,6 +436,7 @@ async function strokeMask(file, outFile, drop = []) {
   if (drawn) parts.push(`${drawn} px de borda fechada`);
   if (erased) parts.push(`${erased} px de sobra aparada`);
   if (dropped) parts.push(`${dropped} px de adereço removido`);
+  if (outlined) parts.push(`${outlined} px de contorno fino`);
   if (sealed) parts.push(`${sealed} px de fresta fechada`);
   if (parts.length) log(`    ${path.basename(file)}: ${parts.join(', ')}`);
   await sharp(buf, { raw: { width: w, height: h, channels: 1 } })
@@ -561,7 +613,7 @@ async function build(langId, cfg) {
     if (!fs.existsSync(source)) throw new Error(`faltando ${source}`);
     if (cfg.ink === 'stroke') {
       const mask = path.join(TMP, `${langId}-${id}.png`);
-      await strokeMask(source, mask, cfg.drop?.[id]);
+      await strokeMask(source, mask, cfg.drop?.[id], cfg.outline?.[id]);
       files.set(id, mask);
     } else {
       files.set(id, source);

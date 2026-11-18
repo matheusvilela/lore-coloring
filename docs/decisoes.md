@@ -205,6 +205,7 @@ O pipeline nasceu para as 26 latinas, que já vêm em traço preto. Para outras 
 - **Objeto desenhado só em cinza não vira traço: ele tapa a borda.** As latas do `ㅛ` não têm linha nenhuma e escondem a borda vertical do corpo, então as hastes da letra terminavam no ar. O pipeline desenha a **borda que faltava**: identifica o objeto exposto (cinza neutro, área ≥ 200 px, **fora** de área fechada por preto), traça uma reta de 5 px no lado voltado para o corpo ligando as duas pontas de traço existentes, e **apara** a sobra arredondada que passava por baixo dele. Cinza cercado por preto é sombra interna (olho do `ㅗ`, lente do `ㅟ`) e continua fora; a franja de antialiasing também.
 - **Junta de 1 px não sobrevive à vetorização.** Onde duas pontas de traço se tocam só na diagonal (o `ㄴ` na quina inferior esquerda), a máscara fica fechada mas o potrace lê 4-conexo e a suavização abre um buraco no render — o miolo vaza e o balde pinta a página. O sintoma é o próprio teste: só quando o miolo alcança a página é que o xadrez 2×2 da junta é preenchido.
 - **Adereço de folha de quadrinhos sai do traço por caixa declarada.** O "whoosh" do `ㅋ` e a palavra "WAND" + seta do `ㅈ` são pretos como o contorno, então não há regra que os separe — o config do idioma lista as caixas (`drop`) e só o traço as remove; o recorte colorido continua inteiro.
+- **A pupila do `ㅉ` ganha contorno gerado.** No original ela é **magenta**, sem linha, e sem ela o olho ficaria vazio: é a única exceção à regra "entra linha, sai valor". O config lista a caixa da pupila (`outline`) e o pipeline desenha um anel de **1 px da fonte** (6,7 px no render, ~¼ da espessura do traço) **por fora** da forma colorida — o miolo continua branco e pintável.
 - **Canvas uniforme** de mesma proporção das latinas (309 × 236 ↔ 329 × 251) → o resto do pipeline (`viewBox` compartilhado, 2048 × 1562, `region.png`, `thumb`) roda **sem nenhuma alteração**.
 - **Idioma é argumento**: `node scripts/build-assets.mjs [latin|coreano|all]`. Os artefatos são commitados como os latinos; CI continua sem potrace.
 - O coreano **não está na UI** ainda: `public/coreano/` existe, mas nenhuma tela o carrega. Detalhes e medições na seção 8.
@@ -456,6 +457,8 @@ O resultado preserva pupila, cílios, dentes e sobrancelhas, e transforma corpo 
 
 **Adereços que não são a letra.** Duas letras vêm com enfeite de folha de quadrinhos: o `ㅋ` tem um "whoosh" solto acima e o `ㅈ` tem a palavra **"WAND"** com uma seta apontando para a varinha. O recorte mantém (a prova de recorte e a conferência continuam valendo), mas o traço não: eles são removidos por **caixas declaradas no config do idioma** (`drop` em `LANGS`), porque nenhuma regra de cor ou forma separa a legenda do desenho — a seta e a palavra são pretas como o contorno, e a varinha (que fica) também. São 223 px no `ㅋ` e 445 px no `ㅈ`; nenhuma tinta da letra é tocada (verificado: zero tinta a até 2 px das caixas).
 
+**A pupila colorida que vira contorno.** A regra "entra linha, sai valor" tem uma exceção: a pupila do `ㅉ` é **magenta** (`#b935b9`/`#b233b2`) e não tem linha nenhuma. Descartá-la deixaria o olho vazio — e a pupila é justamente o que faz a cara ler como cara. O config do idioma declara a caixa (`outline`), o pipeline seleciona os pixels coloridos dentro dela (matiz > 30 e valor > 60) e desenha um anel de **1 px da fonte por fora** da forma. Por fora, e não por cima: o miolo fica branco, então a criança pinta a pupila como pinta o resto. São **101 px** nas duas pupilas; 1 px da fonte vira 6,7 px no render, cerca de **¼ da espessura do traço da letra** — contorno fino. Cada pupila passa a ser uma região própria do balde (0,23% e 0,20% do canvas) e o `ㅉ` vai de 13 para 15 regiões.
+
 Recortes coloridos para conferência em `_qa/coreano/conferencia.png`; traço final em `_qa/coreano/prancha.png`.
 
 ### 8.3 Medições
@@ -466,12 +469,13 @@ Recortes coloridos para conferência em `_qa/coreano/conferencia.png`; traço fi
 | canvas do recorte | 309 × 236 (mesma proporção das latinas, 1,309:1) |
 | bbox compartilhado | 307 × 188 @ (1, 24) |
 | tinta renderizada | **2048 × 1254** (fator 6,67×), centrada em 2048 × 1562 |
-| peso de `public/coreano/` | **2,29 MB** (40 letras, 4 arquivos cada; média 59 KB) |
+| peso de `public/coreano/` | **2,30 MB** (40 letras, 4 arquivos cada; média 59 KB) |
 | paths por letra | 1 a 12 (mediana 2) |
 | regiões por letra | 4 a 20 (1 a 10 pintáveis, isto é, que não encostam na borda) |
 | maior região pintável | **1,9% a 14,4%** do canvas (a menor era 0,2% no `ㄴ` antes de fechar a fresta da quina) |
 | traço extraído × original | 0,000% de tinta perdida no recorte; olhos e dentes preservados |
 | adereços fora do traço | `ㅋ`: "whoosh" acima da letra (223 px); `ㅈ`: palavra "WAND" e seta (445 px, a varinha fica) |
+| contorno gerado | pupila do `ㅉ`: anel de 1 px da fonte por fora da forma magenta (101 px nas duas) |
 | objetos em cinza (sem contorno) | latas do `ㅛ`: a letra é fechada com uma reta no lugar da borda que a lata escondia (344 px desenhados, 116 px de sobra aparada); brilho da lente do `ㅟ` fica fora por ser sombra interna |
 
 ### 8.4 O que muda quando o coreano entrar na UI
